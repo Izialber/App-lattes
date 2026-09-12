@@ -1,8 +1,8 @@
 {
   "name": "Certificados Lattes",
   "short_name": "Cert. Lattes",
-  "start_url": "/certificados-lattes/",
-  "scope": "/certificados-lattes/",
+  "start_url": "/app-lattes/",
+  "scope": "/app-lattes/",
   "display": "standalone",
   "background_color": "#0B5FFF",
   "theme_color": "#0B5FFF",
