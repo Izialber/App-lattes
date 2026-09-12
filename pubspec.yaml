@@ -1,0 +1,137 @@
+name: certificados_lattes
+description: >
+  Organiza comprovantes academicos a partir do curriculo Lattes (XML) e monta
+  o dossie de Prova de Titulos para concursos publicos. Fase 1: Flutter Web
+  (PWA). Fase 2: apps nativos Android/iOS reaproveitando o mesmo dominio.
+publish_to: "none"
+
+# Dart 3 com null-safety extremo (requisito do parser XML defensivo).
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+# ---------------------------------------------------------------------------
+# LEGENDA usada nos comentarios de cada pacote:
+#   [web ok]              -> funciona igual em Chrome desktop/Android e Safari iOS
+#   [web c/ ressalva Safari] -> funciona, mas com limitacao ou comportamento
+#                                diferente especificamente no Safari iOS (ver notas)
+#   [so nativo, fase 2]   -> so tem efeito quando compilado para Android/iOS;
+#                            em Flutter Web fica atras de uma abstracao com
+#                            implementacao web equivalente (ver core/platform)
+# Versoes fixadas em faixa semantica (^) para eu validar depois; nao foi
+# rodado `flutter pub get` neste ambiente (sem SDK do Flutter disponivel).
+# ---------------------------------------------------------------------------
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_web_plugins:
+    sdk: flutter
+
+  # --- Estado global -------------------------------------------------------
+  # Riverpod escolhido no lugar de Bloc (justificativa completa em
+  # DECISOES.md, item "Gerenciamento de estado global"). Resumo: menos
+  # boilerplate para os 4 fluxos assincronos concorrentes (parser, fila de
+  # upload, extracao LLM, montagem de dossie), suporte nativo a
+  # AsyncNotifier para estados retomaveis, e testabilidade sem BuildContext.
+  flutter_riverpod: ^2.5.1        # [web ok]
+  riverpod_annotation: ^2.3.5     # [web ok] geracao de codigo para providers
+  hooks_riverpod: ^2.5.1          # [web ok] combinamos com flutter_hooks nas telas de captura
+
+  # --- Navegacao -------------------------------------------------------
+  go_router: ^14.2.0              # [web ok] deep-link/URL restaurando fluxo apos reload
+
+  # --- OAuth2 PKCE (Google Drive e Microsoft Graph) -------------------------
+  # oauth2 puro nao implementa PKCE nem fluxo por redirect de forma pronta
+  # para web; usamos openid_client, que suporta Authorization Code + PKCE via
+  # redirect (sem client secret) e roda sobre package:web no alvo web.
+  openid_client: ^0.4.9           # [web ok] fluxo Authorization Code + PKCE por redirect
+  crypto: ^3.0.3                  # [web ok] geracao de code_verifier/code_challenge (S256)
+  app_links: ^6.3.2               # [web c/ ressalva Safari] captura o retorno do redirect;
+                                   # no Safari iOS so funciona de forma confiavel quando o
+                                   # PWA esta instalado na tela de inicio (ver RISCOS.md)
+
+  # --- Camera / captura web --------------------------------------------
+  # camera (plugin oficial) tem suporte web via camera_web, mas historicamente
+  # com bugs em Safari iOS (orientacao, autoplay). Usamos abordagem mais
+  # direta e estavel no pior caso: binding a getUserMedia via
+  # package:web + <video>/<canvas>, encapsulado atras da nossa interface
+  # CameraService (core/platform/camera). O pacote camera fica como
+  # dependencia auxiliar apenas para o caminho nativo da fase 2.
+  camera: ^0.11.0+2               # [so nativo, fase 2] usado apenas por CameraServiceNative
+  web: ^1.1.0                     # [web ok] bindings dart:js_interop para getUserMedia/canvas
+
+  # --- Conversao de imagem (HEIC -> JPEG) e compressao ----------------------
+  # Nao existe decoder HEIC confiavel 100% em Dart puro para web (formato
+  # proprietario da Apple). Estrategia: heic_to_jpg so cobre nativo; no web,
+  # convertemos via <canvas> quando o navegador consegue decodificar o HEIC
+  # (Safari recente decodifica <img> HEIC nativamente), com fallback explicito
+  # pedindo ao usuario para exportar como JPEG quando a conversao falhar.
+  # Ver ARQUITETURA.md, secao "HeicConverter".
+  image: ^4.2.0                   # [web ok] redimensionamento/compressao de raster (JPEG/PNG)
+  heic_to_jpg: ^0.2.0             # [so nativo, fase 2] usado apenas por HeicConverterNative
+
+  # --- Manipulacao e mesclagem de PDF ---------------------------------------
+  # pdf (dart puro) gera PDFs do zero e roda em qualquer plataforma incluindo
+  # web, o que e essencial pois nao ha binario nativo disponivel no navegador.
+  pdf: ^3.11.1                    # [web ok] geracao/composicao de paginas PDF, puro Dart
+  printing: ^5.13.1               # [web c/ ressalva Safari] preview/leitura de PDF via
+                                   # pdf.js no web; no Safari iOS o preview inline de PDF
+                                   # grande pode ser fechado pelo sistema por memoria
+  syncfusion_flutter_pdf: ^26.2.9 # [web ok] parsing de PDF de edital (extrair texto por pagina)
+                                   # licenca community gratuita ate limite de receita: revalidar
+                                   # antes de uso comercial (ver DECISOES.md)
+
+  # --- XML (parser do Lattes) -----------------------------------------------
+  xml: ^6.5.0                     # [web ok] dart puro, sem dependencia de plataforma
+
+  # --- Tratamento funcional de erro -----------------------------------------
+  # Either<Failure, T> em vez de exceptions cruzando a fronteira domain/data.
+  # Ver DECISOES.md, "Either vs exceptions tipadas".
+  fpdart: ^1.1.0                  # [web ok] dart puro
+
+  # --- HTTP / rede -----------------------------------------------------
+  dio: ^5.6.0                     # [web ok] cliente HTTP com interceptors (refresh token, retry)
+  retry: ^3.1.2                   # [web ok] backoff exponencial para fila offline-first
+  connectivity_plus: ^6.0.5       # [web c/ ressalva Safari] deteccao de rede; no Safari iOS
+                                   # eventos de conectividade sao menos granulares (fallback:
+                                   # o proprio erro de rede do Dio dispara o enfileiramento)
+
+  # --- Storage local (fila de upload, progresso, credenciais) ---------------
+  # IndexedDB via Hive CE (fork mantido do Hive) para dados estruturados
+  # (fila de upload, vinculos aprovados, estado do dossie em montagem).
+  hive_ce: ^2.10.1                # [web ok] usa IndexedDB no navegador
+  hive_ce_flutter: ^2.2.0         # [web ok]
+  # Credenciais (tokens OAuth, chave LLM BYOK) NUNCA vao para Hive/IndexedDB
+  # em texto puro: passam por SecureStorageService (core/platform/secure_storage).
+  # No web, a implementacao usa Web Crypto API (AES-GCM) com chave nao
+  # exportavel guardada em IndexedDB, cifrando o conteudo antes de gravar.
+  flutter_secure_storage: ^9.2.2  # [so nativo, fase 2] usado apenas por SecureStorageNative
+                                   # (Keychain/Keystore); no web nao ha binding confiavel do
+                                   # plugin, por isso a implementacao web e escrita a mao
+                                   # sobre Web Crypto (ver core/platform/secure_storage)
+
+  # --- Utilidades ------------------------------------------------------
+  file_picker: ^8.1.2             # [web c/ ressalva Safari] seletor de arquivo/drag-and-drop;
+                                   # no Safari iOS o nome/mimetype do arquivo escolhido pode
+                                   # vir generico (ex: "image.jpg" mesmo sendo HEIC) — ver
+                                   # RISCOS.md, "Upload iOS com nome/mimetype genericos"
+  uuid: ^4.5.1                    # [web ok]
+  intl: ^0.19.0                   # [web ok] formatacao de datas do XML Lattes (padrao dd/MM/yyyy)
+  equatable: ^2.0.5               # [web ok] igualdade de valor para entidades de dominio
+  freezed_annotation: ^2.4.4      # [web ok] entidades imutaveis + copyWith
+  json_annotation: ^4.9.0         # [web ok] (de/)serializacao dos modelos de estado persistido
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.13
+  riverpod_generator: ^2.4.3
+  freezed: ^2.5.7
+  json_serializable: ^6.8.0
+  mocktail: ^1.0.4                # [web ok] mocks para os testes de use case/repository
+
+flutter:
+  uses-material-design: true
+  # assets do PWA (favicon, icones de manifest) ficam em web/icons; nenhum
+  # asset embarca chave de API ou segredo (requisito BYOK, ver RISCOS.md).

@@ -1,0 +1,36 @@
+{
+  "name": "Certificados Lattes",
+  "short_name": "Cert. Lattes",
+  "start_url": "/certificados-lattes/",
+  "scope": "/certificados-lattes/",
+  "display": "standalone",
+  "background_color": "#0B5FFF",
+  "theme_color": "#0B5FFF",
+  "description": "Organize comprovantes acadêmicos do Lattes e monte a Prova de Títulos para concursos públicos.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

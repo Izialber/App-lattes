@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Organize comprovantes acadêmicos do Lattes e monte a Prova de Títulos para concursos públicos.">
+
+  <!-- iOS: viewport sem maximum-scale para não quebrar acessibilidade de zoom,
+       mas com viewport-fit=cover para respeitar safe-area em telas com notch. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- PWA instalável: essencial no Safari iOS, onde o IndexedDB pode ser
+       apagado em 7 dias se o app NÃO estiver instalado na tela de início.
+       Ver RISCOS.md, "Perda de storage local (iOS)". -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cert. Lattes">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <title>Certificados Lattes</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- CSP mínima: permite chamadas HTTPS às APIs necessárias (Google,
+       Microsoft Graph, Gemini/OpenAI) e bloqueia o resto. Ajustar domínios
+       exatos quando os endpoints finais forem confirmados (ver DECISOES.md,
+       "CSP final de produção").
+       - 'wasm-unsafe-eval' em script-src: exigido pelo Chrome para compilar
+         o WebAssembly do motor CanvasKit do Flutter Web (sem isso o app não
+         renderiza nada — tela em branco).
+       - fonts.gstatic.com em connect-src: o CanvasKit baixa a fonte Roboto
+         de lá em tempo de execução quando não há fonte local equivalente. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src 'self' https://www.googleapis.com https://graph.microsoft.com https://generativelanguage.googleapis.com https://api.openai.com https://accounts.google.com https://login.microsoftonline.com https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval';">
+</head>
+<body>
+  <script>
+    // Registro do service worker é feito manualmente (em vez do bootstrap
+    // padrão do `flutter build web`) para controlar explicitamente a
+    // política de cache — ver sw.js e ROADMAP_MOBILE.md sobre atualização
+    // forçada quando uma nova versão é publicada.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js');
+      });
+    }
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
