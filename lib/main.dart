@@ -15,30 +15,28 @@ import 'core/routing/app_router.dart';
 ///    mantida fora deste arquivo para não acoplar `main.dart` a Hive
 ///    diretamente — ver DECISOES.md).
 ///
-/// A checagem de retorno de redirect OAuth (`tratarRetornoRedirect`) também
-/// acontece aqui, antes do primeiro frame, para que o usuário nunca veja a
-/// tela inicial "piscar" antes de ser redirecionado de volta ao fluxo em que
-/// estava.
+/// A tela inicial é sempre o login (ver `AppRoutes.login`/`appRouterProvider`);
+/// o retorno do redirect OAuth (`tratarRetornoDeRedirect`) é tratado pela
+/// própria `OAuthCallbackPage` ao montar, não aqui.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Remove o "#" das URLs no Flutter Web (usa History API em vez de hash
   // routing). Necessário para o app funcionar corretamente publicado em uma
-  // subpasta (ex.: /certificados-lattes/) em vez da raiz do domínio.
+  // subpasta (ex.: /app-lattes/) em vez da raiz do domínio.
   usePathUrlStrategy();
 
   // PENDENTE (fora do escopo do entregável 5): await bootstrap() abrindo as
-  // Hive boxes e chamando AuthRepository.tratarRetornoRedirect() quando a
-  // URL atual for AppRoutes.oauthCallback.
+  // Hive boxes usadas pela fila de upload e vínculos aprovados.
 
   runApp(const ProviderScope(child: CertificadosLattesApp()));
 }
 
-class CertificadosLattesApp extends StatelessWidget {
+class CertificadosLattesApp extends ConsumerWidget {
   const CertificadosLattesApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'Certificados Lattes',
       debugShowCheckedModeBanner: false,
@@ -46,7 +44,7 @@ class CertificadosLattesApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF0B5FFF),
       ),
-      routerConfig: appRouter,
+      routerConfig: ref.watch(appRouterProvider),
     );
   }
 }
