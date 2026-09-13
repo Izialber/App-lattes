@@ -1,7 +1,9 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
+import 'core/config/firebase_config.dart';
 import 'core/routing/app_router.dart';
 
 /// Ponto de entrada. Duas coisas acontecem ANTES de `runApp`, propositalmente
@@ -25,6 +27,13 @@ Future<void> main() async {
   // routing). Necessário para o app funcionar corretamente publicado em uma
   // subpasta (ex.: /app-lattes/) em vez da raiz do domínio.
   usePathUrlStrategy();
+
+  // Login por email/senha (Firebase Auth) fica indisponível até o projeto
+  // Firebase ser criado e configurado — ver core/config/firebase_config.dart.
+  // Não tenta inicializar com config vazia (falharia em runtime).
+  if (FirebaseConfig.isConfigured) {
+    await Firebase.initializeApp(options: FirebaseConfig.options);
+  }
 
   // PENDENTE (fora do escopo do entregável 5): await bootstrap() abrindo as
   // Hive boxes usadas pela fila de upload e vínculos aprovados.
