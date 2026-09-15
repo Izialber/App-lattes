@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../cloud_sync/presentation/providers/auth_providers.dart';
 import '../providers/lattes_providers.dart';
 import '../widgets/curriculo_list_view.dart';
 
@@ -21,7 +22,16 @@ class LattesImportPage extends ConsumerWidget {
     final estado = ref.watch(lattesImportControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Importar currículo Lattes')),
+      appBar: AppBar(
+        title: const Text('Importar currículo Lattes'),
+        actions: [
+          IconButton(
+            tooltip: 'Sair',
+            icon: const Icon(Icons.logout),
+            onPressed: () => ref.read(authControllerProvider.notifier).logout(),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: estado.carregando
             ? null
