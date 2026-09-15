@@ -14,12 +14,12 @@ import 'package:firebase_core/firebase_core.dart';
 class FirebaseConfig {
   FirebaseConfig._();
 
-  static const String apiKey = '';
-  static const String authDomain = '';
-  static const String projectId = '';
-  static const String storageBucket = '';
-  static const String messagingSenderId = '';
-  static const String appId = '';
+  static const String apiKey = 'AIzaSyDvFU3uxn0g0I_DvOzd3XiDofpQ4DzfK18';
+  static const String authDomain = 'certificados-lattes.firebaseapp.com';
+  static const String projectId = 'certificados-lattes';
+  static const String storageBucket = 'certificados-lattes.firebasestorage.app';
+  static const String messagingSenderId = '1042408353618';
+  static const String appId = '1:1042408353618:web:94dc052f5a7bed4639d48b';
 
   static bool get isConfigured => apiKey.isNotEmpty;
 

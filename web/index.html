@@ -31,15 +31,23 @@
          renderiza nada — tela em branco).
        - fonts.gstatic.com em connect-src: o CanvasKit baixa a fonte Roboto
          de lá em tempo de execução quando não há fonte local equivalente.
-       - www.gstatic.com em script-src: o pacote firebase_core injeta um
-         <script> desse domínio em tempo de execução para carregar o SDK JS
-         do Firebase (login por email/senha) — não há como self-hostar sem
-         reempacotar manualmente o SDK a cada atualização do pacote.
+       - www.gstatic.com em script-src: o pacote firebase_core importa (via
+         `import()` dinâmico) o SDK JS modular do Firebase desse domínio em
+         tempo de execução — não há como self-hostar sem reempacotar
+         manualmente todo o grafo de módulos do SDK a cada atualização do
+         pacote.
+       - 'unsafe-inline' em script-src: o firebase_core injeta um <script>
+         SEM src (conteúdo inline, contendo o `import()` acima) para
+         disparar esse carregamento — permitir só o host www.gstatic.com
+         não basta, porque isso só libera scripts com src= daquele domínio,
+         não o script inline que os invoca. Sem isso, `globalContext[...]`
+         nunca é definido e o app quebra com "is not a function" ao tentar
+         chamar o SDK.
        - identitytoolkit.googleapis.com / securetoken.googleapis.com em
          connect-src: APIs REST do Firebase Authentication (login/cadastro
          por email+senha e renovação de token). -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src 'self' https://www.googleapis.com https://graph.microsoft.com https://generativelanguage.googleapis.com https://api.openai.com https://accounts.google.com https://login.microsoftonline.com https://fonts.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com;">
+        content="default-src 'self'; connect-src 'self' https://www.googleapis.com https://graph.microsoft.com https://generativelanguage.googleapis.com https://api.openai.com https://accounts.google.com https://login.microsoftonline.com https://fonts.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://www.gstatic.com;">
 </head>
 <body>
   <script>
