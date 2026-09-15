@@ -5,6 +5,7 @@ enum TipoPublicacao {
   trabalhoEvento,
   capituloLivro,
   livroPublicado,
+  textoJornalOuRevista,
   outro,
 }
 

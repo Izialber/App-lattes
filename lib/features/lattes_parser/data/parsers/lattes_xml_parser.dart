@@ -3,8 +3,11 @@ import 'package:xml/xml.dart';
 import '../../domain/entities/curriculo_lattes.dart';
 import '../../domain/entities/curso.dart';
 import '../../domain/entities/experiencia_profissional.dart';
+import '../../domain/entities/idioma.dart';
 import '../../domain/entities/orientacao.dart';
+import '../../domain/entities/participacao_evento.dart';
 import '../../domain/entities/producao_tecnica.dart';
+import '../../domain/entities/projeto_pesquisa.dart';
 import '../../domain/entities/publicacao.dart';
 import 'lattes_xml_defensive_utils.dart';
 
@@ -38,15 +41,24 @@ class LattesXmlParseException implements Exception {
 ///     científica, outra natureza), concluídas e em andamento — seção
 ///     `OUTRA-PRODUCAO/ORIENTACOES-*`, adicionada por decisão explícita do
 ///     usuário de expandir o escopo original (ver DECISOES.md).
-///   - Produção técnica: software e produto tecnológico — seção
-///     `OUTRA-PRODUCAO/PRODUCAO-TECNICA`, mesma expansão.
+///   - Produção técnica: software, produto tecnológico, apresentação de
+///     trabalho, programa de rádio/TV, mídia social/website/blog — seção
+///     `PRODUCAO-TECNICA` (filha direta da raiz do XML, não de
+///     `OUTRA-PRODUCAO` apesar do nome — confirmado contra XML real de
+///     usuário; ver DECISOES.md).
+///   - Participação em eventos/congressos (congresso, oficina, exposição,
+///     outras) — seção `DADOS-COMPLEMENTARES/PARTICIPACAO-EM-EVENTOS-CONGRESSOS`.
+///   - Projetos de pesquisa em que o usuário participou — seção
+///     `PARTICIPACAO-EM-PROJETO`, aninhada em cada vínculo de
+///     `ATUACOES-PROFISSIONAIS`.
+///   - Áreas de atuação e idiomas — seções `DADOS-GERAIS/AREAS-DE-ATUACAO` e
+///     `DADOS-GERAIS/IDIOMAS`.
 ///
-/// O schema real do Lattes tem outras seções ainda não cobertas (projetos
-/// de pesquisa, prêmios, participação em bancas, demais tipos de produção
-/// técnica). Elas simplesmente não geram itens na saída desta versão — a
-/// AUSÊNCIA de uma seção no XML e a ausência de SUPORTE a uma seção têm o
-/// mesmo efeito observável (nenhum item), o que é intencional e
-/// documentado, nunca um erro silencioso.
+/// O schema real do Lattes tem outras seções ainda não cobertas (prêmios,
+/// participação em bancas, patentes/registros, inovação). Elas simplesmente
+/// não geram itens na saída desta versão — a AUSÊNCIA de uma seção no XML e
+/// a ausência de SUPORTE a uma seção têm o mesmo efeito observável (nenhum
+/// item), o que é intencional e documentado, nunca um erro silencioso.
 class LattesXmlParser {
   const LattesXmlParser();
 
@@ -70,6 +82,7 @@ class LattesXmlParser {
     final raiz = raizCandidatos.first;
 
     final dadosGerais = findChild(raiz, 'DADOS-GERAIS');
+    final dadosComplementares = findChild(raiz, 'DADOS-COMPLEMENTARES');
 
     // NOME-COMPLETO é o único campo que tratamos como obrigatório para
     // considerar o currículo "legível" — mesmo assim, se estiver ausente,
@@ -85,11 +98,15 @@ class LattesXmlParser {
       nomeEmCitacoesBibliograficas: attrOrNull(dadosGerais, 'NOME-EM-CITACOES-BIBLIOGRAFICAS'),
       idLattes: attrOrNull(raiz, 'NUMERO-IDENTIFICADOR'),
       dataAtualizacaoCv: parseDataAtualizacaoCv(attrOrNull(raiz, 'DATA-ATUALIZACAO')),
-      cursos: _parseCursos(dadosGerais),
+      cursos: _parseCursos(dadosGerais, dadosComplementares),
       experienciasProfissionais: _parseExperiencias(dadosGerais),
       publicacoes: _parsePublicacoes(raiz),
       orientacoes: _parseOrientacoes(raiz),
       producoesTecnicas: _parseProducoesTecnicas(raiz),
+      participacoesEventos: _parseParticipacoesEventos(dadosComplementares),
+      projetos: _parseProjetos(dadosGerais),
+      areasDeAtuacao: _parseAreasDeAtuacao(dadosGerais),
+      idiomas: _parseIdiomas(dadosGerais),
     );
   }
 
@@ -105,7 +122,7 @@ class LattesXmlParser {
     'POS-DOUTORADO': NivelCurso.posDoutorado,
   };
 
-  List<Curso> _parseCursos(XmlElement? dadosGerais) {
+  List<Curso> _parseCursos(XmlElement? dadosGerais, XmlElement? dadosComplementares) {
     final formacao = findChild(dadosGerais, 'FORMACAO-ACADEMICA-TITULACAO');
     final cursos = <Curso>[];
 
@@ -125,8 +142,12 @@ class LattesXmlParser {
       }
     }
 
-    final formacaoComplementar = findChild(dadosGerais, 'FORMACAO-COMPLEMENTAR');
-    for (final el in findChildren(formacaoComplementar, 'CURSO-DE-CURTA-DURACAO')) {
+    // Formação complementar vive em DADOS-COMPLEMENTARES (não DADOS-GERAIS)
+    // e o item é FORMACAO-COMPLEMENTAR-CURSO-DE-CURTA-DURACAO (não
+    // CURSO-DE-CURTA-DURACAO) — confirmado contra XML real de usuário, ver
+    // DECISOES.md.
+    final formacaoComplementar = findChild(dadosComplementares, 'FORMACAO-COMPLEMENTAR');
+    for (final el in findChildren(formacaoComplementar, 'FORMACAO-COMPLEMENTAR-CURSO-DE-CURTA-DURACAO')) {
       cursos.add(Curso(
         nivel: NivelCurso.cursoCurta,
         nomeCurso: attrOrNull(el, 'TITULO-DO-CURSO') ?? 'Curso sem título informado',
@@ -262,6 +283,34 @@ class LattesXmlParser {
       ));
     }
 
+    final textosJornaisRevistas = findChild(producao, 'TEXTOS-EM-JORNAIS-OU-REVISTAS');
+    for (final texto in findChildren(textosJornaisRevistas, 'TEXTO-EM-JORNAL-OU-REVISTA')) {
+      final basicos = findChild(texto, 'DADOS-BASICOS-DO-TEXTO');
+      final detalhamento = findChild(texto, 'DETALHAMENTO-DO-TEXTO');
+      publicacoes.add(Publicacao(
+        tipo: TipoPublicacao.textoJornalOuRevista,
+        titulo: attrOrNull(basicos, 'TITULO-DO-TEXTO') ?? 'Título não informado',
+        ano: intAttrOrNull(basicos, 'ANO-DO-TEXTO'),
+        doi: null,
+        nomeVeiculo: attrOrNull(detalhamento, 'TITULO-DO-JORNAL-OU-REVISTA'),
+        autores: _parseAutores(texto),
+      ));
+    }
+
+    final demaisTipos = findChild(producao, 'DEMAIS-TIPOS-DE-PRODUCAO-BIBLIOGRAFICA');
+    for (final outra in findChildren(demaisTipos, 'OUTRA-PRODUCAO-BIBLIOGRAFICA')) {
+      final basicos = findChild(outra, 'DADOS-BASICOS-DE-OUTRA-PRODUCAO');
+      final detalhamento = findChild(outra, 'DETALHAMENTO-DE-OUTRA-PRODUCAO');
+      publicacoes.add(Publicacao(
+        tipo: TipoPublicacao.outro,
+        titulo: attrOrNull(basicos, 'TITULO') ?? 'Título não informado',
+        ano: intAttrOrNull(basicos, 'ANO'),
+        doi: null,
+        nomeVeiculo: attrOrNull(detalhamento, 'EDITORA'),
+        autores: _parseAutores(outra),
+      ));
+    }
+
     return publicacoes;
   }
 
@@ -342,9 +391,12 @@ class LattesXmlParser {
   // Produção técnica (expansão de escopo decidida pelo usuário)
   // ---------------------------------------------------------------------
 
+  /// `PRODUCAO-TECNICA` é filha DIRETA da raiz do XML — irmã de
+  /// `OUTRA-PRODUCAO`, não filha dela, apesar do nome da seção sugerir o
+  /// contrário. Confirmado contra XML real de usuário (ver DECISOES.md);
+  /// buscar dentro de `OUTRA-PRODUCAO` nunca encontrava nada.
   List<ProducaoTecnica> _parseProducoesTecnicas(XmlElement raiz) {
-    final outraProducao = findChild(raiz, 'OUTRA-PRODUCAO');
-    final producaoTecnica = findChild(outraProducao, 'PRODUCAO-TECNICA');
+    final producaoTecnica = findChild(raiz, 'PRODUCAO-TECNICA');
     final producoes = <ProducaoTecnica>[];
 
     for (final software in findChildren(producaoTecnica, 'SOFTWARE')) {
@@ -369,6 +421,137 @@ class LattesXmlParser {
       ));
     }
 
+    final demaisTipos = findChild(producaoTecnica, 'DEMAIS-TIPOS-DE-PRODUCAO-TECNICA');
+
+    for (final apresentacao in findChildren(demaisTipos, 'APRESENTACAO-DE-TRABALHO')) {
+      final basicos = findChild(apresentacao, 'DADOS-BASICOS-DA-APRESENTACAO-DE-TRABALHO');
+      final detalhamento = findChild(apresentacao, 'DETALHAMENTO-DA-APRESENTACAO-DE-TRABALHO');
+      producoes.add(ProducaoTecnica(
+        tipo: TipoProducaoTecnica.apresentacaoDeTrabalho,
+        titulo: attrOrNull(basicos, 'TITULO') ?? 'Título não informado',
+        ano: intAttrOrNull(basicos, 'ANO'),
+        finalidadeOuNatureza: attrOrNull(detalhamento, 'NOME-DO-EVENTO'),
+      ));
+    }
+
+    for (final programa in findChildren(demaisTipos, 'PROGRAMA-DE-RADIO-OU-TV')) {
+      final basicos = findChild(programa, 'DADOS-BASICOS-DO-PROGRAMA-DE-RADIO-OU-TV');
+      final detalhamento = findChild(programa, 'DETALHAMENTO-DO-PROGRAMA-DE-RADIO-OU-TV');
+      producoes.add(ProducaoTecnica(
+        tipo: TipoProducaoTecnica.programaDeRadioOuTv,
+        titulo: attrOrNull(basicos, 'TITULO') ?? 'Título não informado',
+        ano: intAttrOrNull(basicos, 'ANO'),
+        finalidadeOuNatureza: attrOrNull(detalhamento, 'EMISSORA'),
+      ));
+    }
+
+    for (final midia in findChildren(demaisTipos, 'MIDIA-SOCIAL-WEBSITE-BLOG')) {
+      final basicos = findChild(midia, 'DADOS-BASICOS-DA-MIDIA-SOCIAL-WEBSITE-BLOG');
+      producoes.add(ProducaoTecnica(
+        tipo: TipoProducaoTecnica.midiaSocialWebsiteBlog,
+        titulo: attrOrNull(basicos, 'TITULO') ?? 'Título não informado',
+        ano: intAttrOrNull(basicos, 'ANO'),
+        finalidadeOuNatureza: attrOrNull(basicos, 'NATUREZA'),
+      ));
+    }
+
     return producoes;
+  }
+
+  // ---------------------------------------------------------------------
+  // Participação em eventos/congressos (expansão de escopo pedida pelo
+  // usuário após conferir o XML real do seu próprio currículo)
+  // ---------------------------------------------------------------------
+
+  static const Map<String, TipoParticipacaoEvento> _tagsParticipacaoEvento = {
+    'PARTICIPACAO-EM-CONGRESSO': TipoParticipacaoEvento.congresso,
+    'PARTICIPACAO-EM-OFICINA': TipoParticipacaoEvento.oficina,
+    'PARTICIPACAO-EM-EXPOSICAO': TipoParticipacaoEvento.exposicao,
+    'OUTRAS-PARTICIPACOES-EM-EVENTOS-CONGRESSOS': TipoParticipacaoEvento.outra,
+  };
+
+  List<ParticipacaoEvento> _parseParticipacoesEventos(XmlElement? dadosComplementares) {
+    final container = findChild(dadosComplementares, 'PARTICIPACAO-EM-EVENTOS-CONGRESSOS');
+    final participacoes = <ParticipacaoEvento>[];
+
+    for (final entry in _tagsParticipacaoEvento.entries) {
+      final sufixo = entry.key == 'PARTICIPACAO-EM-CONGRESSO'
+          ? 'DA-PARTICIPACAO-EM-CONGRESSO'
+          : entry.key == 'PARTICIPACAO-EM-OFICINA'
+              ? 'DA-PARTICIPACAO-EM-OFICINA'
+              : entry.key == 'PARTICIPACAO-EM-EXPOSICAO'
+                  ? 'DA-PARTICIPACAO-EM-EXPOSICAO'
+                  : 'DE-OUTRAS-PARTICIPACOES-EM-EVENTOS-CONGRESSOS';
+
+      for (final item in findChildren(container, entry.key)) {
+        final basicos = findChild(item, 'DADOS-BASICOS-$sufixo');
+        final detalhamento = findChild(item, 'DETALHAMENTO-$sufixo');
+        final nomeEvento = attrOrNull(detalhamento, 'NOME-DO-EVENTO');
+        // No Lattes, TITULO vem vazio quando é participação simples (não
+        // apresentação de trabalho) — cai para o nome do evento como título
+        // de exibição em vez de mostrar um item sem nenhum texto.
+        final titulo = attrOrNull(basicos, 'TITULO') ?? nomeEvento ?? 'Participação sem título informado';
+
+        participacoes.add(ParticipacaoEvento(
+          tipo: entry.value,
+          titulo: titulo,
+          nomeEvento: nomeEvento,
+          ano: intAttrOrNull(basicos, 'ANO'),
+        ));
+      }
+    }
+
+    return participacoes;
+  }
+
+  // ---------------------------------------------------------------------
+  // Projetos de pesquisa (expansão de escopo pedida pelo usuário)
+  // ---------------------------------------------------------------------
+
+  /// Projetos não são uma lista solta no XML — cada um vive aninhado dentro
+  /// do vínculo institucional (`ATUACAO-PROFISSIONAL`) em que o usuário
+  /// participou dele, então é preciso iterar todas as atuações.
+  List<ProjetoPesquisa> _parseProjetos(XmlElement? dadosGerais) {
+    final atuacoes = findChild(dadosGerais, 'ATUACOES-PROFISSIONAIS');
+    final projetos = <ProjetoPesquisa>[];
+
+    for (final atuacao in findChildren(atuacoes, 'ATUACAO-PROFISSIONAL')) {
+      final atividades = findChild(atuacao, 'ATIVIDADES-DE-PARTICIPACAO-EM-PROJETO');
+      for (final projeto in findChildren(atividades, 'PARTICIPACAO-EM-PROJETO')) {
+        projetos.add(ProjetoPesquisa(
+          nome: attrOrNull(projeto, 'NOME-DO-PROJETO') ?? 'Projeto sem título informado',
+          situacao: attrOrNull(projeto, 'SITUACAO'),
+          anoInicio: intAttrOrNull(projeto, 'ANO-INICIO'),
+          anoFim: intAttrOrNull(projeto, 'ANO-FIM'),
+        ));
+      }
+    }
+
+    return projetos;
+  }
+
+  // ---------------------------------------------------------------------
+  // Áreas de atuação e idiomas (expansão de escopo pedida pelo usuário)
+  // ---------------------------------------------------------------------
+
+  List<String> _parseAreasDeAtuacao(XmlElement? dadosGerais) {
+    final container = findChild(dadosGerais, 'AREAS-DE-ATUACAO');
+    return findChildren(container, 'AREA-DE-ATUACAO')
+        .map((el) => attrOrNull(el, 'NOME-DA-AREA-DO-CONHECIMENTO'))
+        .whereType<String>()
+        .toList(growable: false);
+  }
+
+  List<Idioma> _parseIdiomas(XmlElement? dadosGerais) {
+    final container = findChild(dadosGerais, 'IDIOMAS');
+    return findChildren(container, 'IDIOMA').map((el) {
+      return Idioma(
+        descricao: attrOrNull(el, 'DESCRICAO-DO-IDIOMA') ?? 'Idioma não informado',
+        proficienciaLeitura: attrOrNull(el, 'PROFICIENCIA-DE-LEITURA'),
+        proficienciaFala: attrOrNull(el, 'PROFICIENCIA-DE-FALA'),
+        proficienciaEscrita: attrOrNull(el, 'PROFICIENCIA-DE-ESCRITA'),
+        proficienciaCompreensao: attrOrNull(el, 'PROFICIENCIA-DE-COMPREENSAO'),
+      );
+    }).toList(growable: false);
   }
 }

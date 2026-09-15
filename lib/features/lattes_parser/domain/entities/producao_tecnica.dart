@@ -1,15 +1,21 @@
 import 'package:equatable/equatable.dart';
 
-enum TipoProducaoTecnica { software, produtoTecnologico, outro }
+enum TipoProducaoTecnica {
+  software,
+  produtoTecnologico,
+  apresentacaoDeTrabalho,
+  programaDeRadioOuTv,
+  midiaSocialWebsiteBlog,
+  outro,
+}
 
-/// Item de produção técnica (seção `PRODUCAO-TECNICA` dentro de
-/// `OUTRA-PRODUCAO` no XML do Lattes) — adicionada junto com [Orientacao]
-/// na expansão de escopo decidida pelo usuário. Cobre apenas software e
-/// produto tecnológico nesta versão (as duas categorias mais comumente
-/// exigidas em critérios de Prova de Títulos de concursos técnicos); as
-/// demais subseções de produção técnica do Lattes (processos/técnicas,
-/// maquetes, mídia social etc.) ficam fora do escopo, mesmo padrão de
-/// decisão já aplicado à produção bibliográfica (ver DECISOES.md).
+/// Item de produção técnica (seção `PRODUCAO-TECNICA`, filha direta da raiz
+/// do XML do Lattes — não de `OUTRA-PRODUCAO`, apesar do nome sugerir isso;
+/// ver DECISOES.md). Cobre as subseções com dado real observado em
+/// currículos de usuários: software, produto tecnológico, apresentação de
+/// trabalho, programa de rádio/TV, mídia social/website/blog. Demais
+/// subseções do Lattes (processos/técnicas, maquetes etc.) ficam fora do
+/// escopo, mesmo padrão de decisão já aplicado à produção bibliográfica.
 class ProducaoTecnica extends Equatable {
   final TipoProducaoTecnica tipo;
   final String titulo;

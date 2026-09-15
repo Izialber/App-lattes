@@ -2,8 +2,11 @@ import 'package:equatable/equatable.dart';
 
 import 'curso.dart';
 import 'experiencia_profissional.dart';
+import 'idioma.dart';
 import 'orientacao.dart';
+import 'participacao_evento.dart';
 import 'producao_tecnica.dart';
+import 'projeto_pesquisa.dart';
 import 'publicacao.dart';
 
 /// Entidade raiz do currículo Lattes importado. Representa apenas os dados
@@ -20,6 +23,10 @@ class CurriculoLattes extends Equatable {
   final List<ExperienciaProfissional> experienciasProfissionais;
   final List<Orientacao> orientacoes;
   final List<ProducaoTecnica> producoesTecnicas;
+  final List<ParticipacaoEvento> participacoesEventos;
+  final List<ProjetoPesquisa> projetos;
+  final List<String> areasDeAtuacao;
+  final List<Idioma> idiomas;
 
   const CurriculoLattes({
     required this.nomeCompleto,
@@ -31,6 +38,10 @@ class CurriculoLattes extends Equatable {
     this.experienciasProfissionais = const [],
     this.orientacoes = const [],
     this.producoesTecnicas = const [],
+    this.participacoesEventos = const [],
+    this.projetos = const [],
+    this.areasDeAtuacao = const [],
+    this.idiomas = const [],
   });
 
   /// `true` quando há pelo menos um vínculo profissional cuja natureza
@@ -54,6 +65,10 @@ class CurriculoLattes extends Equatable {
       experienciasProfissionais: novasExperiencias,
       orientacoes: orientacoes,
       producoesTecnicas: producoesTecnicas,
+      participacoesEventos: participacoesEventos,
+      projetos: projetos,
+      areasDeAtuacao: areasDeAtuacao,
+      idiomas: idiomas,
     );
   }
 
@@ -68,5 +83,9 @@ class CurriculoLattes extends Equatable {
         experienciasProfissionais,
         orientacoes,
         producoesTecnicas,
+        participacoesEventos,
+        projetos,
+        areasDeAtuacao,
+        idiomas,
       ];
 }

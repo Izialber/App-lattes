@@ -83,6 +83,57 @@ class CurriculoListView extends ConsumerWidget {
                       ))
                   .toList(),
             ),
+          if (curriculo.participacoesEventos.isNotEmpty)
+            _secaoLista(
+              context,
+              titulo: 'Participação em eventos (${curriculo.participacoesEventos.length})',
+              itens: curriculo.participacoesEventos
+                  .map((p) => _ItemTile(
+                        titulo: p.titulo,
+                        subtitulo: [
+                          if (p.nomeEvento != null && p.nomeEvento != p.titulo) p.nomeEvento!,
+                          if (p.ano != null) '${p.ano}',
+                        ].join(' · '),
+                      ))
+                  .toList(),
+            ),
+          if (curriculo.projetos.isNotEmpty)
+            _secaoLista(
+              context,
+              titulo: 'Projetos de pesquisa (${curriculo.projetos.length})',
+              itens: curriculo.projetos
+                  .map((p) => _ItemTile(
+                        titulo: p.nome,
+                        subtitulo: [
+                          if (p.situacao != null) p.situacao!,
+                          if (p.anoInicio != null || p.anoFim != null)
+                            '${p.anoInicio ?? '?'}–${p.anoFim ?? 'atual'}',
+                        ].join(' · '),
+                      ))
+                  .toList(),
+            ),
+          if (curriculo.areasDeAtuacao.isNotEmpty)
+            _secaoLista(
+              context,
+              titulo: 'Áreas de atuação (${curriculo.areasDeAtuacao.length})',
+              itens: curriculo.areasDeAtuacao
+                  .map((area) => _ItemTile(titulo: area, subtitulo: ''))
+                  .toList(),
+            ),
+          if (curriculo.idiomas.isNotEmpty)
+            _secaoLista(
+              context,
+              titulo: 'Idiomas (${curriculo.idiomas.length})',
+              itens: curriculo.idiomas
+                  .map((idioma) => _ItemTile(
+                        titulo: idioma.descricao,
+                        subtitulo: [
+                          if (idioma.proficienciaLeitura != null) 'Leitura: ${idioma.proficienciaLeitura}',
+                          if (idioma.proficienciaFala != null) 'Fala: ${idioma.proficienciaFala}',
+                        ].join(' · '),
+                      ))
+                  .toList(),
+            ),
         ];
 
         if (!duasColunas) {

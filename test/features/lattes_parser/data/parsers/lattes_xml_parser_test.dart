@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:certificados_lattes/features/lattes_parser/data/parsers/lattes_xml_parser.dart';
 import 'package:certificados_lattes/features/lattes_parser/domain/entities/curso.dart';
 import 'package:certificados_lattes/features/lattes_parser/domain/entities/orientacao.dart';
+import 'package:certificados_lattes/features/lattes_parser/domain/entities/participacao_evento.dart';
 import 'package:certificados_lattes/features/lattes_parser/domain/entities/producao_tecnica.dart';
 import 'package:certificados_lattes/features/lattes_parser/domain/entities/publicacao.dart';
 import 'package:certificados_lattes/features/lattes_parser/domain/usecases/confirmar_vinculo_atual.dart';
@@ -96,8 +97,8 @@ void main() {
       expect(doutorado.nomeOrientado, 'Rafael Nogueira');
     });
 
-    test('lê produção técnica (software e produto tecnológico)', () {
-      expect(curriculo.producoesTecnicas, hasLength(2));
+    test('lê produção técnica (software, produto tecnológico e os 3 tipos novos)', () {
+      expect(curriculo.producoesTecnicas, hasLength(5));
 
       final software = curriculo.producoesTecnicas.firstWhere(
         (p) => p.tipo == TipoProducaoTecnica.software,
@@ -109,10 +110,28 @@ void main() {
         (p) => p.tipo == TipoProducaoTecnica.produtoTecnologico,
       );
       expect(produto.titulo, 'Guia de Hardening ISA/IEC 62443');
+
+      final apresentacao = curriculo.producoesTecnicas.firstWhere(
+        (p) => p.tipo == TipoProducaoTecnica.apresentacaoDeTrabalho,
+      );
+      expect(apresentacao.titulo, 'Simulação de Eventos Discretos Aplicada à Evasão');
+      expect(apresentacao.finalidadeOuNatureza, 'COBENGE 2023');
+
+      final programa = curriculo.producoesTecnicas.firstWhere(
+        (p) => p.tipo == TipoProducaoTecnica.programaDeRadioOuTv,
+      );
+      expect(programa.titulo, 'Proteção da sua base de TO');
+      expect(programa.finalidadeOuNatureza, 'Youtube');
+
+      final midia = curriculo.producoesTecnicas.firstWhere(
+        (p) => p.tipo == TipoProducaoTecnica.midiaSocialWebsiteBlog,
+      );
+      expect(midia.titulo, 'Site Pessoal');
+      expect(midia.finalidadeOuNatureza, 'SITE');
     });
 
-    test('lê publicações dos três tipos suportados', () {
-      expect(curriculo.publicacoes, hasLength(3));
+    test('lê publicações dos cinco tipos suportados', () {
+      expect(curriculo.publicacoes, hasLength(5));
 
       final artigo = curriculo.publicacoes.firstWhere(
         (p) => p.tipo == TipoPublicacao.artigoPeriodico,
@@ -131,6 +150,52 @@ void main() {
         (p) => p.tipo == TipoPublicacao.capituloLivro,
       );
       expect(capitulo.nomeVeiculo, 'Tópicos em Automação Industrial');
+
+      final texto = curriculo.publicacoes.firstWhere(
+        (p) => p.tipo == TipoPublicacao.textoJornalOuRevista,
+      );
+      expect(texto.titulo, 'Informação guardada a 7 chaves');
+      expect(texto.nomeVeiculo, 'FM Connection');
+
+      final outra = curriculo.publicacoes.firstWhere(
+        (p) => p.tipo == TipoPublicacao.outro,
+      );
+      expect(outra.titulo, 'Dataset de Adoção de IoT na América do Sul');
+      expect(outra.nomeVeiculo, 'IEEE');
+    });
+
+    test('lê participação em eventos, caindo para o nome do evento quando TITULO vem vazio', () {
+      expect(curriculo.participacoesEventos, hasLength(2));
+
+      final congresso = curriculo.participacoesEventos.firstWhere(
+        (p) => p.tipo == TipoParticipacaoEvento.congresso,
+      );
+      // TITULO="" no XML (participação simples, não apresentação) — cai
+      // para NOME-DO-EVENTO como título de exibição.
+      expect(congresso.titulo, '7º Congresso Nacional FENEP');
+      expect(congresso.ano, 2022);
+
+      final outra = curriculo.participacoesEventos.firstWhere(
+        (p) => p.tipo == TipoParticipacaoEvento.outra,
+      );
+      expect(outra.titulo, 'Como está a proteção da sua base de TO?');
+      expect(outra.nomeEvento, 'Mês da Inovação do IBP');
+    });
+
+    test('lê projeto de pesquisa aninhado dentro do vínculo institucional', () {
+      final projeto = curriculo.projetos.single;
+      expect(projeto.nome, 'Modernização do Sistema de Controle de Pressão');
+      expect(projeto.situacao, 'CONCLUIDO');
+      expect(projeto.anoInicio, 2019);
+      expect(projeto.anoFim, 2021);
+    });
+
+    test('lê áreas de atuação e idiomas', () {
+      expect(curriculo.areasDeAtuacao, ['Engenharia Elétrica', 'Engenharia de Produção']);
+
+      final idioma = curriculo.idiomas.single;
+      expect(idioma.descricao, 'Inglês');
+      expect(idioma.proficienciaLeitura, 'BEM');
     });
   });
 
