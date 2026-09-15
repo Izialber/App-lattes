@@ -54,7 +54,7 @@ void main() {
       expect(cursoCurta.instituicao, 'ISA');
     });
 
-    test('lê experiências profissionais e infere vínculo atual pela ausência de ANO-DE-FIM', () {
+    test('lê experiências profissionais e infere vínculo atual pela ausência de ANO-FIM', () {
       expect(curriculo.experienciasProfissionais, hasLength(2));
 
       final shell = curriculo.experienciasProfissionais.firstWhere(
@@ -64,7 +64,7 @@ void main() {
       expect(shell.dataFim, isNull);
       expect(shell.cargo, 'IT Site Operations Lead');
       expect(shell.dataInicio, DateTime(2018, 3));
-      // ANO-DE-FIM ausente: vínculo ambíguo, precisa de confirmação explícita
+      // ANO-FIM ausente: vínculo ambíguo, precisa de confirmação explícita
       // do usuário antes de entrar num dossiê (ver DECISOES.md).
       expect(shell.precisaConfirmacaoVinculoAtual, isTrue);
 
@@ -73,7 +73,7 @@ void main() {
       );
       expect(dunamis.vinculoAtual, isFalse);
       expect(dunamis.dataFim, DateTime(2023, 12));
-      // ANO-DE-FIM presente: sem ambiguidade, não precisa de confirmação.
+      // ANO-FIM presente: sem ambiguidade, não precisa de confirmação.
       expect(dunamis.precisaConfirmacaoVinculoAtual, isFalse);
 
       expect(curriculo.temVinculosPendentesDeConfirmacao, isTrue);
@@ -224,7 +224,7 @@ void main() {
       expect(cursoCurta.anoInicio, isNull);
     });
 
-    test('experiência sem MES-DE-INICIO assume mês 1 e fica marcada para confirmação', () {
+    test('experiência sem MES-INICIO assume mês 1 e fica marcada para confirmação', () {
       final experiencia = curriculo.experienciasProfissionais.single;
       expect(experiencia.dataInicio, DateTime(2015, 1));
       expect(experiencia.vinculoAtual, isTrue);
@@ -262,7 +262,7 @@ void main() {
       expect(experiencia.vinculoAtual, isFalse);
       // Sem VINCULOS nenhum, não há ambiguidade de "vínculo em andamento" a
       // resolver — a confirmação só se aplica quando há um vínculo cujo
-      // ANO-DE-FIM está ausente.
+      // ANO-FIM está ausente.
       expect(experiencia.precisaConfirmacaoVinculoAtual, isFalse);
       expect(curriculo.temVinculosPendentesDeConfirmacao, isFalse);
     });

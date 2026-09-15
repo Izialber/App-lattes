@@ -150,7 +150,10 @@ class LattesXmlParser {
     for (final el in findChildren(formacaoComplementar, 'FORMACAO-COMPLEMENTAR-CURSO-DE-CURTA-DURACAO')) {
       cursos.add(Curso(
         nivel: NivelCurso.cursoCurta,
-        nomeCurso: attrOrNull(el, 'TITULO-DO-CURSO') ?? 'Curso sem título informado',
+        // O nome do curso vem em NOME-CURSO (mesmo atributo usado em
+        // GRADUACAO/MESTRADO/etc.), não TITULO-DO-CURSO — confirmado contra
+        // XML real de usuário.
+        nomeCurso: attrOrNull(el, 'NOME-CURSO') ?? 'Curso sem título informado',
         instituicao: attrOrNull(el, 'NOME-INSTITUICAO'),
         anoInicio: intAttrOrNull(el, 'ANO-DE-INICIO'),
         anoConclusao: intAttrOrNull(el, 'ANO-DE-CONCLUSAO'),
@@ -158,7 +161,7 @@ class LattesXmlParser {
         // sido preenchido pelo usuário — tratamos ausência como null, nunca
         // como zero (zero horas seria uma afirmação factual incorreta).
         cargaHorariaHoras: intAttrOrNull(el, 'CARGA-HORARIA'),
-        situacao: null,
+        situacao: attrOrNull(el, 'STATUS-DO-CURSO'),
       ));
     }
 
@@ -185,28 +188,43 @@ class LattesXmlParser {
       }
 
       for (final vinculo in vinculos) {
-        final anoFim = intAttrOrNull(vinculo, 'ANO-DE-FIM');
-        // Ausência de ANO-DE-FIM é como o schema do CNPq representa "vínculo
-        // em andamento" — indistinguível de "usuário não preencheu a data
-        // de fim". Por decisão explícita do usuário (ver DECISOES.md), essa
+        // Atenção: os atributos de data em VINCULOS são ANO-INICIO/MES-INICIO/
+        // ANO-FIM/MES-FIM — SEM "-DE-" no meio — diferente do padrão usado em
+        // outras seções do schema (ex.: FORMACAO-ACADEMICA-TITULACAO usa
+        // ANO-DE-INICIO/ANO-DE-CONCLUSAO). Confirmado contra XML real de
+        // usuário; usar os nomes com "-DE-" aqui faz TODO vínculo parecer sem
+        // data de fim, mesmo quando o Lattes já tem a data preenchida (ver
+        // DECISOES.md).
+        final anoFim = intAttrOrNull(vinculo, 'ANO-FIM');
+
+        // ENQUADRAMENTO-FUNCIONAL é uma categoria fixa do Lattes (ex.:
+        // "LIVRE") — não é o cargo em si. Quando o usuário descreve o cargo
+        // em texto livre, isso fica em OUTRO-ENQUADRAMENTO-FUNCIONAL-INFORMADO,
+        // que é o que de fato queremos mostrar; ENQUADRAMENTO-FUNCIONAL só
+        // serve como cargo quando não há nada mais específico.
+        final cargo = attrOrNull(vinculo, 'OUTRO-ENQUADRAMENTO-FUNCIONAL-INFORMADO') ??
+            attrOrNull(vinculo, 'ENQUADRAMENTO-FUNCIONAL');
+
+        // Ausência de ANO-FIM é como o schema do CNPq representa "vínculo em
+        // andamento" — indistinguível de "usuário não preencheu a data de
+        // fim". Por decisão explícita do usuário (ver DECISOES.md), essa
         // ambiguidade NÃO é resolvida silenciosamente: assumimos
         // `vinculoAtual: true` como leitura mais provável, mas marcamos
         // `precisaConfirmacaoVinculoAtual: true` para a tela de importação
-        // perguntar ao usuário antes deste vínculo entrar em um dossiê.
-        // Quando ANO-DE-FIM está presente, não há ambiguidade nenhuma.
+        // perguntar ao usuário antes deste vínculo entrar num dossiê. Quando
+        // ANO-FIM está presente, não há ambiguidade nenhuma.
         experiencias.add(ExperienciaProfissional(
           instituicao: instituicao,
-          cargo: attrOrNull(vinculo, 'ENQUADRAMENTO-FUNCIONAL') ??
-              attrOrNull(vinculo, 'OUTRO-ENQUADRAMENTO-FUNCIONAL-INFORMADO'),
+          cargo: cargo,
           dataInicio: dateFromMonthYearAttrs(
             vinculo,
-            anoAttr: 'ANO-DE-INICIO',
-            mesAttr: 'MES-DE-INICIO',
+            anoAttr: 'ANO-INICIO',
+            mesAttr: 'MES-INICIO',
           ),
           dataFim: dateFromMonthYearAttrs(
             vinculo,
-            anoAttr: 'ANO-DE-FIM',
-            mesAttr: 'MES-DE-FIM',
+            anoAttr: 'ANO-FIM',
+            mesAttr: 'MES-FIM',
           ),
           vinculoAtual: anoFim == null,
           precisaConfirmacaoVinculoAtual: anoFim == null,
@@ -510,14 +528,21 @@ class LattesXmlParser {
 
   /// Projetos não são uma lista solta no XML — cada um vive aninhado dentro
   /// do vínculo institucional (`ATUACAO-PROFISSIONAL`) em que o usuário
-  /// participou dele, então é preciso iterar todas as atuações.
+  /// participou dele, então é preciso iterar todas as atuações. Além disso,
+  /// `PARTICIPACAO-EM-PROJETO` é só um wrapper com dados da função exercida
+  /// (SEQUENCIA-FUNCAO-ATIVIDADE, FLAG-PERIODO) — os dados do projeto em si
+  /// (nome, situação, anos) ficam num filho `PROJETO-DE-PESQUISA`. Confirmado
+  /// contra XML real de usuário; ler direto do wrapper sempre dava nome/
+  /// situação/anos nulos, mesmo com o projeto preenchido no Lattes.
   List<ProjetoPesquisa> _parseProjetos(XmlElement? dadosGerais) {
     final atuacoes = findChild(dadosGerais, 'ATUACOES-PROFISSIONAIS');
     final projetos = <ProjetoPesquisa>[];
 
     for (final atuacao in findChildren(atuacoes, 'ATUACAO-PROFISSIONAL')) {
       final atividades = findChild(atuacao, 'ATIVIDADES-DE-PARTICIPACAO-EM-PROJETO');
-      for (final projeto in findChildren(atividades, 'PARTICIPACAO-EM-PROJETO')) {
+      for (final participacao in findChildren(atividades, 'PARTICIPACAO-EM-PROJETO')) {
+        final projeto = findChild(participacao, 'PROJETO-DE-PESQUISA');
+        if (projeto == null) continue;
         projetos.add(ProjetoPesquisa(
           nome: attrOrNull(projeto, 'NOME-DO-PROJETO') ?? 'Projeto sem título informado',
           situacao: attrOrNull(projeto, 'SITUACAO'),
