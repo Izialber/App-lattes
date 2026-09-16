@@ -1,46 +1,95 @@
+import 'dart:convert';
+import 'dart:js_interop';
+
+import 'package:web/web.dart' as web;
+
 import 'camera_service.dart';
+
+const double _jpegQuality = 0.9;
 
 /// Implementação Web via `getUserMedia`.
 ///
-/// Notas de implementação (corpo real fica fora do escopo do entregável 5 —
-/// listado em DECISOES.md como pendência de implementação, esta classe fixa
-/// a interface e o contrato de uso):
-///
-/// - Usa `package:web` (`window.navigator.mediaDevices.getUserMedia`) para
-///   obter um `MediaStream`, ligado a um elemento `<video>` registrado via
-///   `HtmlElementView`/`platformViewRegistry`.
-/// - `captureFrame()` desenha o frame atual do `<video>` em um `<canvas>`
-///   oculto e exporta via `canvas.toBlob('image/jpeg', quality)`.
 /// - `start()` DEVE ser chamado a partir do `onTap` do botão "Abrir câmera"
 ///   — nunca de forma automática — porque Safari iOS bloqueia
 ///   `getUserMedia` fora de um gesto do usuário e exige contexto HTTPS.
+/// - `captureFrame()` desenha o frame atual do `<video>` em um `<canvas>`
+///   oculto e exporta via `toDataURL('image/jpeg', quality)`.
 /// - Erros de permissão negada, câmera ocupada por outra aba, ou ausência de
-///   câmera são todos traduzidos para [CaptureFailure] pelo datasource que
-///   consome esta classe (`certificate_capture/data/datasources`).
+///   câmera viram [StateError] com mensagem amigável, traduzidos para
+///   [CaptureFailure] pelo repositório que consome esta classe
+///   (`certificate_capture/data/repositories`).
+///
+/// [previewElement] expõe o `<video>` ao vivo para a presentation layer
+/// exibir via `HtmlElementView` — a integração desse widget de preview no
+/// fluxo de captura ainda está pendente (ver `certificate_capture_page.dart`);
+/// esta classe já está pronta para quando isso for implementado.
 class CameraServiceWeb implements CameraService {
-  bool _started = false;
+  web.MediaStream? _stream;
+  web.HTMLVideoElement? _video;
 
   @override
-  bool get isAvailable => _started;
+  bool get isAvailable => _stream != null;
+
+  web.HTMLVideoElement? get previewElement => _video;
 
   @override
   Future<void> start() async {
-    // TODO(fase 1, pendente): bind com getUserMedia via package:web.
-    // Deve ser chamado só a partir de um gesto do usuário (ver docstring).
-    throw UnimplementedError(
-      'CameraServiceWeb.start: implementação getUserMedia pendente (ver DECISOES.md)',
-    );
+    final web.MediaStream stream;
+    try {
+      stream = await web.window.navigator.mediaDevices
+          .getUserMedia(
+            web.MediaStreamConstraints(
+              video: web.MediaTrackConstraints(facingMode: 'environment'.toJS),
+              audio: false.toJS,
+            ),
+          )
+          .toDart;
+    } catch (e) {
+      throw StateError(
+        'Não foi possível acessar a câmera. Verifique se a permissão foi concedida '
+        'e se nenhuma outra aba está usando a câmera. ($e)',
+      );
+    }
+
+    final video = web.HTMLVideoElement()
+      ..autoplay = true
+      ..muted = true
+      ..srcObject = stream;
+    await video.play().toDart;
+
+    _stream = stream;
+    _video = video;
   }
 
   @override
   Future<CapturedFrame> captureFrame() async {
-    throw UnimplementedError(
-      'CameraServiceWeb.captureFrame: captura via <canvas> pendente (ver DECISOES.md)',
+    final video = _video;
+    if (_stream == null || video == null) {
+      throw StateError('Câmera não iniciada — chame start() antes de captureFrame().');
+    }
+
+    final canvas = web.HTMLCanvasElement()
+      ..width = video.videoWidth
+      ..height = video.videoHeight;
+    final context = canvas.getContext('2d') as web.CanvasRenderingContext2D;
+    context.drawImage(video, 0, 0);
+
+    final dataUrl = canvas.toDataURL('image/jpeg', _jpegQuality.toJS);
+    final base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
+
+    return CapturedFrame(
+      bytes: base64Decode(base64),
+      mimeType: 'image/jpeg',
+      capturedAt: DateTime.now(),
     );
   }
 
   @override
   Future<void> stop() async {
-    _started = false;
+    for (final track in _stream?.getTracks().toDart ?? <web.MediaStreamTrack>[]) {
+      track.stop();
+    }
+    _stream = null;
+    _video = null;
   }
 }

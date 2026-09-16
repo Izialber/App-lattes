@@ -25,4 +25,22 @@ class LlmApiKeyStore {
         : SecureStorageKeys.llmApiKeyOpenAi;
     return _secureStorage.write(key: key, value: apiKey);
   }
+
+  /// Provedor ativo hoje — fora da tela de configuração (onde o provider é
+  /// escolhido explicitamente), o resto do app sempre opera sobre "o
+  /// provedor configurado agora", nunca pede para o chamador especificar.
+  Future<LlmProviderEscolhido?> obterProvedorEscolhido() async {
+    final nome = await _secureStorage.read(key: SecureStorageKeys.llmProviderEscolhido);
+    for (final provider in LlmProviderEscolhido.values) {
+      if (provider.name == nome) return provider;
+    }
+    return null;
+  }
+
+  Future<void> salvarProvedorEscolhido(LlmProviderEscolhido provider) {
+    return _secureStorage.write(
+      key: SecureStorageKeys.llmProviderEscolhido,
+      value: provider.name,
+    );
+  }
 }

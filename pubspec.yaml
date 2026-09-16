@@ -144,3 +144,7 @@ flutter:
   uses-material-design: true
   # assets do PWA (favicon, icones de manifest) ficam em web/icons; nenhum
   # asset embarca chave de API ou segredo (requisito BYOK, ver RISCOS.md).
+  assets:
+    # Prompts de LLM como assets versionados (não hardcoded em Dart) para
+    # permitir ajuste de prompt sem recompilar — ver DECISOES.md.
+    - assets/prompts/

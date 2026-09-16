@@ -191,3 +191,78 @@ o que mudou no código em consequência:
    redirect URI — hoje só documentado como necessidade, não executado (depende do deploy).
    Google pode exigir processo de verificação para o escopo do Drive quando o número de
    usuários crescer além do limite de app não verificado.
+
+## Implementação do Módulo 2 — Captura de Certificados (2026-09-16)
+
+Continuação pedida pelo usuário após o teste ao vivo do login com Google ter falhado (erro
+retomado depois — ver RISCOS.md/pendência de OAuth). Decisões tomadas para sair do stub
+documentado para uma implementação real, sem pergunta prévia ao usuário porque cada uma decorria
+diretamente do contrato já fixado pelas entidades/interfaces existentes:
+
+1. **`LlmRepository.extrairJsonDeImagem`/`extrairJsonDeTexto` não recebem o provedor como
+   parâmetro** (só `testarConexao` recebe) — mas nada no código anterior dizia COMO o
+   repositório saberia qual provedor usar. Resolvido estendendo `LlmApiKeyStore` (que já
+   guardava as chaves BYOK) para também guardar qual provedor está ativo
+   (`SecureStorageKeys.llmProviderEscolhido`, gravado como o nome do enum). `LlmRepositoryImpl`
+   lê essa preferência a cada chamada; se não houver provedor configurado ou a chave dele não
+   estiver salva, retorna `LlmFailure(isQuotaOrAuth: true)` pedindo para configurar em
+   Configurações (tela de configuração de chave em si continua fora do escopo desta rodada).
+
+2. **Sugestão de vínculo (`VinculoSugerido`) NÃO é calculada durante a extração do
+   certificado**, mesmo o diagrama de ARQUITETURA.md (seção 4.2) sugerindo isso na descrição em
+   texto. Ficou explícito ao ler `SugerirVinculos` (módulo 4, `dossie_builder`): esse use case
+   recebe uma lista de `CertificadoCapturado` JÁ sincronizados e um `Edital`, e é o único lugar
+   que de fato tem acesso a candidatos reais de vínculo (itens do currículo Lattes cruzados
+   contra critérios do edital). Pedir para o LLM "adivinhar" um `idItemLattesReferenciado` na
+   extração do certificado não faria sentido sem esse contexto. `CertificadoCapturado.
+   vinculoSugerido` fica `null` até o módulo 4 rodar — o prompt de extração (`assets/prompts/
+   extracao_certificado.txt`) pede só título, instituição, carga horária e data.
+
+3. **HeicConverter virou uma abstração de plataforma nova** (`core/platform/heic/`, mesmo
+   padrão de `CameraService`/`SecureStorageService`), porque `ARQUITETURA.md` já a descrevia na
+   tabela de abstrações (linha `HeicConverter`) mas a classe em si nunca tinha sido criada.
+   Implementação Web usa `<img>`/`<canvas>` (Safari decodifica HEIC nativamente; outros
+   navegadores lançam `HeicConversionUnsupportedException`, tratada pela UI como pedido de
+   exportação manual). Detecção de HEIC é por magic bytes do box `ftyp` (ISOBMFF) — nunca por
+   mimetype/extensão, por causa do RISCOS.md já registrado sobre mimetype genérico no iOS.
+
+4. **Persistência local do módulo 2 em duas Hive boxes separadas** (`certificate_capture_
+   metadata` para os campos de `CertificadoCapturado`, `certificate_capture_images` para os
+   bytes crus) em vez de uma só — decisão de performance, não só de organização: `listarTodos()`
+   (usado toda vez que a tela de lista monta) só precisa ler metadados; carregar os bytes de
+   TODAS as imagens de uma vez só para mostrar status seria desperdício de memória crescente com
+   o número de certificados. `caminhoImagemLocal` (campo que já existia na entidade, documentado
+   como "referência local / IndexedDB key") passou a ser literalmente o `id` do certificado,
+   usado como chave nas duas boxes. Isso também preencheu a pendência de `main.dart` de abrir
+   as Hive boxes antes do primeiro frame — criado `core/di/bootstrap.dart` para isso, só abrindo
+   as boxes que já têm um repositório real por trás (não as de fila de upload/dossiê, que
+   continuam stub).
+
+5. **Compressão de imagem (`package:image`) antes do envio ao LLM, dentro de `TaskRunner.run`**
+   — reduz para no máximo 1600px de largura e reencoda em JPEG qualidade 85 antes de mandar para
+   Gemini/OpenAI; se a decodificação falhar (formato não reconhecido pelo decoder puro Dart),
+   segue com a imagem original em vez de bloquear a extração inteira por causa de uma otimização.
+
+6. **Câmera ao vivo (`getUserMedia`) implementada em `CameraServiceWeb`, mas SEM o widget de
+   preview ligado na tela ainda** — decisão de escopo, não de arquitetura: a integração de um
+   `<video>` ao vivo dentro da árvore de widgets do Flutter Web (`HtmlElementView` + registro de
+   view factory) é a peça de maior risco de bug não detectável sem um ambiente Flutter real para
+   testar (este ambiente não tem o SDK Flutter — ver RESUMO.md), e o upload via `file_picker` já
+   cobre o caso de uso completo hoje, inclusive em mobile (o seletor de arquivo abre a
+   câmera/galeria nativa do aparelho quando o `accept` é imagem). Fica como pendência explícita
+   para a próxima rodada, não como algo esquecido.
+
+7. **Tela de configuração BYOK implementada na mesma rodada** (`LlmSettingsPage`, rota
+   `/configuracoes/llm`, `LlmSettingsController`) assim que ficou claro que sem ela o pipeline
+   inteiro do Módulo 2 é inutilizável (`extrairDados` sempre cai em "nenhum provedor
+   configurado"). Segue o mesmo requisito já registrado para BYOK: `testarConexao` roda ANTES
+   de `salvarChave`/`salvarProvedorEscolhido` — nunca salva uma chave não testada. Acessível
+   pelo ícone de engrenagem na tela de captura de certificados.
+
+### Novas pendências abertas por esta rodada (2026-09-16)
+
+1. **Widget de preview da câmera ao vivo** (`HtmlElementView` ligado a
+   `CameraServiceWeb.previewElement`) — ver decisão 6 acima.
+2. **CORS da OpenAI a partir do navegador** ainda não foi validado contra uma chave real em
+   produção (ver comentário em `openai_llm_datasource.dart`) — só o Gemini foi desenhado com
+   confiança de que funciona sem proxy, por já ter essa confirmação em RISCOS.md.

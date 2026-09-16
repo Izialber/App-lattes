@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_router.dart';
 import '../../../cloud_sync/presentation/providers/auth_providers.dart';
 import '../providers/lattes_providers.dart';
 import '../widgets/curriculo_list_view.dart';
@@ -25,6 +27,12 @@ class LattesImportPage extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Importar currículo Lattes'),
         actions: [
+          if (estado.curriculo != null)
+            IconButton(
+              tooltip: 'Capturar certificados',
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              onPressed: () => context.go(AppRoutes.capturarCertificados),
+            ),
           IconButton(
             tooltip: 'Sair',
             icon: const Icon(Icons.logout),

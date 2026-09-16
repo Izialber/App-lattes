@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../platform/camera/camera_service.dart';
 import '../platform/camera/camera_service_native.dart';
 import '../platform/camera/camera_service_web.dart';
+import '../platform/heic/heic_converter.dart';
+import '../platform/heic/heic_converter_native.dart';
+import '../platform/heic/heic_converter_web.dart';
 import '../platform/secure_storage/secure_storage_service.dart';
 import '../platform/secure_storage/secure_storage_service_native.dart';
 import '../platform/secure_storage/secure_storage_service_web.dart';
@@ -16,7 +19,7 @@ import '../platform/task_runner/task_runner_web.dart';
 // infraestrutura). Este é o ÚNICO arquivo do app que decide qual
 // implementação de plataforma é usada (kIsWeb) — nenhuma feature faz essa
 // checagem por conta própria. Trocar para a fase 2 nativa é editar só os
-// três providers `*Provider` abaixo, nunca os providers de feature.
+// providers `*Provider` abaixo, nunca os providers de feature.
 // ---------------------------------------------------------------------------
 
 /// Heurística simples de detecção de Safari iOS via user agent, usada só
@@ -43,6 +46,10 @@ final cameraServiceProvider = Provider<CameraService>((ref) {
 
 final secureStorageServiceProvider = Provider<SecureStorageService>((ref) {
   return kIsWeb ? SecureStorageServiceWeb() : SecureStorageServiceNative();
+});
+
+final heicConverterProvider = Provider<HeicConverter>((ref) {
+  return kIsWeb ? HeicConverterWeb() : HeicConverterNative();
 });
 
 // Os providers de repositório/datasource de cada feature (que dependem dos

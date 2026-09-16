@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 
 import 'core/config/firebase_config.dart';
+import 'core/di/bootstrap.dart';
 import 'core/routing/app_router.dart';
 
 /// Ponto de entrada. Duas coisas acontecem ANTES de `runApp`, propositalmente
@@ -12,10 +13,11 @@ import 'core/routing/app_router.dart';
 ///
 /// 1. `WidgetsFlutterBinding.ensureInitialized()` — obrigatório antes de
 ///    qualquer chamada assíncrona de plugin.
-/// 2. Abertura das Hive boxes usadas pela fila de upload, vínculos aprovados
-///    e estado do dossiê em montagem (feita dentro de `bootstrap()`,
-///    mantida fora deste arquivo para não acoplar `main.dart` a Hive
-///    diretamente — ver DECISOES.md).
+/// 2. Abertura das Hive boxes usadas pelo módulo de captura de certificado
+///    (feita dentro de `bootstrap()`, mantida fora deste arquivo para não
+///    acoplar `main.dart` a Hive diretamente — ver DECISOES.md). Fila de
+///    upload e estado de dossiê ainda não têm box própria (módulos 3/4
+///    continuam com a camada de dados em stub).
 ///
 /// A tela inicial é sempre o login (ver `AppRoutes.login`/`appRouterProvider`);
 /// o retorno do redirect OAuth (`tratarRetornoDeRedirect`) é tratado pela
@@ -35,8 +37,7 @@ Future<void> main() async {
     await Firebase.initializeApp(options: FirebaseConfig.options);
   }
 
-  // PENDENTE (fora do escopo do entregável 5): await bootstrap() abrindo as
-  // Hive boxes usadas pela fila de upload e vínculos aprovados.
+  await bootstrap();
 
   runApp(const ProviderScope(child: CertificadosLattesApp()));
 }
