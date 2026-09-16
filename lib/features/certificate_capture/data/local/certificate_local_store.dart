@@ -53,6 +53,7 @@ class CertificateLocalStore {
   Map<String, dynamic> _paraMapa(CertificadoCapturado c) => {
         'id': c.id,
         'caminhoImagemLocal': c.caminhoImagemLocal,
+        'mimeType': c.mimeType,
         'status': c.status.name,
         'tituloExtraido': c.tituloExtraido,
         'instituicaoExtraida': c.instituicaoExtraida,
@@ -77,6 +78,8 @@ class CertificateLocalStore {
     return CertificadoCapturado(
       id: mapa['id'] as String,
       caminhoImagemLocal: mapa['caminhoImagemLocal'] as String,
+      // Fallback para dados persistidos antes deste campo existir.
+      mimeType: mapa['mimeType'] as String? ?? 'image/jpeg',
       status: StatusCertificado.values.byName(mapa['status'] as String),
       tituloExtraido: mapa['tituloExtraido'] as String?,
       instituicaoExtraida: mapa['instituicaoExtraida'] as String?,

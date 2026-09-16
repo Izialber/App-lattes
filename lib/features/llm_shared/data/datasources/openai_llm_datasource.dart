@@ -29,6 +29,17 @@ class OpenAiLlmDatasource {
     List<int>? imagemBytes,
     String? mimeType,
   }) async {
+    if (mimeType == 'application/pdf') {
+      // O endpoint de chat completions só aceita imagem em `image_url`
+      // (jpeg/png/webp/gif) — PDF exigiria a API de Files/Assistants da
+      // OpenAI, fora do escopo desta implementação. Falha explícita aqui é
+      // melhor do que mandar uma chamada fadada a um erro genérico da API.
+      throw const LlmApiException(
+        'A OpenAI (GPT-4o mini) não suporta certificados em PDF neste app ainda. '
+        'Troque para o Gemini Flash em Configurações, ou envie este certificado como imagem.',
+      );
+    }
+
     final content = <Map<String, dynamic>>[
       {'type': 'text', 'text': prompt},
       if (imagemBytes != null && mimeType != null)

@@ -44,9 +44,11 @@ void main() {
   late TaskRunner taskRunner;
   late CertificateRepositoryImpl repository;
 
-  CertificadoCapturado certificadoBase({String id = 'c1'}) => CertificadoCapturado(
+  CertificadoCapturado certificadoBase({String id = 'c1', String mimeType = 'image/jpeg'}) =>
+      CertificadoCapturado(
         id: id,
         caminhoImagemLocal: id,
+        mimeType: mimeType,
         status: StatusCertificado.capturado,
       );
 
@@ -72,6 +74,7 @@ void main() {
       resultado.match((_) => fail('esperava Right'), (c) {
         expect(c.status, StatusCertificado.capturado);
         expect(c.caminhoImagemLocal, c.id);
+        expect(c.mimeType, 'image/jpeg');
       });
       verify(() => localStore.salvarImagem(any(), const [1, 2, 3])).called(1);
       verify(() => localStore.salvar(any())).called(1);
@@ -105,9 +108,10 @@ void main() {
       verifyNever(() => heicConverter.converterParaJpeg(any()));
     });
 
-    test('converte e substitui a imagem quando é HEIC', () async {
+    test('converte e substitui a imagem quando é HEIC, atualizando o mimeType', () async {
       final bytesHeic = Uint8List.fromList([1, 2, 3]);
-      when(() => localStore.buscar('c1')).thenReturn(certificadoBase());
+      when(() => localStore.buscar('c1'))
+          .thenReturn(certificadoBase(mimeType: 'image/heic'));
       when(() => localStore.lerImagem('c1')).thenReturn(bytesHeic);
       when(() => heicConverter.pareceHeic(bytesHeic)).thenReturn(true);
       when(() => heicConverter.converterParaJpeg(bytesHeic)).thenAnswer(
@@ -117,6 +121,10 @@ void main() {
       final resultado = await repository.normalizarFormatoImagem('c1');
 
       expect(resultado.isRight(), isTrue);
+      resultado.match(
+        (_) => fail('esperava Right'),
+        (c) => expect(c.mimeType, 'image/jpeg'),
+      );
       verify(() => localStore.salvarImagem('c1', const [9, 9, 9])).called(1);
     });
 
@@ -190,6 +198,27 @@ void main() {
         expect(c.cargaHorariaExtraidaHoras, isNull);
         expect(c.dataExtraida, isNull);
       });
+    });
+
+    test('PDF pula a compressão de imagem e mantém o mimeType application/pdf', () async {
+      final bytesPdf = Uint8List.fromList('%PDF-1.4 conteúdo falso'.codeUnits);
+      when(() => localStore.buscar('c1'))
+          .thenReturn(certificadoBase(mimeType: 'application/pdf'));
+      when(() => localStore.lerImagem('c1')).thenReturn(bytesPdf);
+      when(() => llmDatasource.extrair(
+            imagemBytes: any(named: 'imagemBytes'),
+            mimeType: any(named: 'mimeType'),
+          )).thenAnswer((_) async => const Right({'titulo': 'Curso X', 'instituicao': 'UFX'}));
+
+      final resultado = await repository.extrairDados('c1');
+
+      expect(resultado.isRight(), isTrue);
+      final chamada = verify(() => llmDatasource.extrair(
+            imagemBytes: captureAny(named: 'imagemBytes'),
+            mimeType: captureAny(named: 'mimeType'),
+          )).captured;
+      expect(chamada[0], bytesPdf); // bytes do PDF inalterados (sem tentativa de recomprimir)
+      expect(chamada[1], 'application/pdf');
     });
 
     test('marca falhaExtracao e propaga a falha quando o LLM falha', () async {

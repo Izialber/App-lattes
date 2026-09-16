@@ -21,6 +21,7 @@ enum StatusCertificado {
 class CertificadoCapturado extends Equatable {
   final String id;
   final String caminhoImagemLocal; // referência local (blob URL / IndexedDB key)
+  final String mimeType; // ex.: 'image/jpeg', 'application/pdf' — decide como extrair/comprimir
   final StatusCertificado status;
   final String? tituloExtraido;
   final String? instituicaoExtraida;
@@ -34,6 +35,7 @@ class CertificadoCapturado extends Equatable {
   const CertificadoCapturado({
     required this.id,
     required this.caminhoImagemLocal,
+    required this.mimeType,
     required this.status,
     this.tituloExtraido,
     this.instituicaoExtraida,
@@ -46,6 +48,7 @@ class CertificadoCapturado extends Equatable {
   });
 
   CertificadoCapturado copyWith({
+    String? mimeType,
     StatusCertificado? status,
     String? tituloExtraido,
     String? instituicaoExtraida,
@@ -59,6 +62,7 @@ class CertificadoCapturado extends Equatable {
     return CertificadoCapturado(
       id: id,
       caminhoImagemLocal: caminhoImagemLocal,
+      mimeType: mimeType ?? this.mimeType,
       status: status ?? this.status,
       tituloExtraido: tituloExtraido ?? this.tituloExtraido,
       instituicaoExtraida: instituicaoExtraida ?? this.instituicaoExtraida,
@@ -75,6 +79,7 @@ class CertificadoCapturado extends Equatable {
   List<Object?> get props => [
         id,
         caminhoImagemLocal,
+        mimeType,
         status,
         tituloExtraido,
         instituicaoExtraida,

@@ -24,10 +24,12 @@ class ArquivoSelecionado {
   }) : caminhoRelativo = caminhoRelativo ?? nomeArquivo;
 }
 
-/// Extensões de imagem aceitas pelo pipeline de captura — compartilhada
-/// entre os dois modos de seleção (arquivos avulsos / pasta) para não
-/// divergir.
-const _extensoesAceitas = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp'];
+/// Extensões aceitas pelo pipeline de captura — compartilhada entre os dois
+/// modos de seleção (arquivos avulsos / pasta) para não divergir. PDF é
+/// aceito porque a Gemini API lê PDF nativamente (ver `LlmRepositoryImpl`);
+/// a OpenAI ainda não, por isso `OpenAiLlmDatasource` rejeita esse mimetype
+/// explicitamente em vez de mandar uma chamada fadada a falhar.
+const _extensoesAceitas = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'pdf'];
 
 String _mimeTypePorExtensao(String? extensao) {
   switch (extensao?.toLowerCase()) {
@@ -38,6 +40,8 @@ String _mimeTypePorExtensao(String? extensao) {
       return 'image/heic';
     case 'webp':
       return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
     case 'jpg':
     case 'jpeg':
     default:

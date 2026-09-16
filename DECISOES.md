@@ -314,3 +314,23 @@ cada `File` carrega `webkitRelativePath` com o caminho original, preservado em
 `ArquivoSelecionado.caminhoRelativo` para mensagens de erro mais úteis. Sem equivalente
 confiável em mobile — por isso a UI oferece as duas opções lado a lado (menu no FAB), com
 seleção de arquivo avulso continuando como caminho principal.
+
+## Suporte a PDF no Módulo 2 (2026-09-16)
+
+Pedido do usuário depois de testar a seleção de pasta e não ver nada acontecer — causa real:
+os certificados dele eram PDF, formato que o pipeline silenciosamente descartava (sem nenhum
+aviso, só corrigido agora com a mensagem "nenhum certificado em formato aceito").
+
+Mudança estrutural: `CertificadoCapturado` ganhou o campo `mimeType` (antes recebido em
+`registrarCaptura` mas descartado sem ser persistido) — sem ele não dava para saber, na hora de
+chamar o LLM, se o arquivo original era imagem ou PDF. `_comprimir` (compressão via
+`package:image`) agora pula direto para PDF (não é formato raster, o decoder retornaria null de
+qualquer forma) e devolve o mimeType correto junto com os bytes, como um record
+`({List<int> bytes, String mimeType})`, para o restante do pipeline nunca assumir "sempre vira
+JPEG depois da compressão" (verdade só para os formatos de imagem).
+
+Gemini lê PDF nativamente via `inline_data` (mesmo mecanismo de imagem, sem mudança no
+datasource). **OpenAI não** — o endpoint de chat completions usado aqui (`image_url`) só aceita
+imagem; PDF exigiria a API de Files/Assistants, fora do escopo. `OpenAiLlmDatasource.gerarJson`
+recusa explicitamente `mimeType: application/pdf` com uma mensagem pedindo para trocar de
+provedor, em vez de deixar a chamada falhar com um erro genérico da API.

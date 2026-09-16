@@ -50,6 +50,7 @@ class CertificateRepositoryImpl implements CertificateRepository {
     final certificado = CertificadoCapturado(
       id: id,
       caminhoImagemLocal: id,
+      mimeType: mimeType,
       status: StatusCertificado.capturado,
     );
 
@@ -87,7 +88,9 @@ class CertificateRepositoryImpl implements CertificateRepository {
         debugLabel: 'converter-heic-$certificadoId',
       );
       await _localStore.salvarImagem(certificadoId, convertida.bytes);
-      return Right(certificado);
+      final atualizado = certificado.copyWith(mimeType: convertida.mimeType);
+      await _localStore.salvar(atualizado);
+      return Right(atualizado);
     } on HeicConversionUnsupportedException catch (e) {
       await _localStore.salvar(
         certificado.copyWith(status: StatusCertificado.falhaExtracao, mensagemErro: e.message),
@@ -112,10 +115,10 @@ class CertificateRepositoryImpl implements CertificateRepository {
 
     await _localStore.salvar(certificado.copyWith(status: StatusCertificado.extraindoDados));
 
-    List<int> bytesParaEnvio;
+    ({List<int> bytes, String mimeType}) paraEnvio;
     try {
-      bytesParaEnvio = await _taskRunner.run(
-        task: () async => _comprimir(bytesOriginais),
+      paraEnvio = await _taskRunner.run(
+        task: () async => _comprimir(bytesOriginais, certificado.mimeType),
         estimatedInputBytes: bytesOriginais.length,
         debugLabel: 'comprimir-certificado-$certificadoId',
       );
@@ -123,12 +126,12 @@ class CertificateRepositoryImpl implements CertificateRepository {
       // Compressão é só otimização de payload antes do envio ao LLM — se
       // falhar (ex.: formato que o decoder puro Dart não reconhece), segue
       // com a imagem original em vez de bloquear a extração inteira.
-      bytesParaEnvio = bytesOriginais;
+      paraEnvio = (bytes: bytesOriginais, mimeType: certificado.mimeType);
     }
 
     final resultado = await _llmDatasource.extrair(
-      imagemBytes: bytesParaEnvio,
-      mimeType: 'image/jpeg',
+      imagemBytes: paraEnvio.bytes,
+      mimeType: paraEnvio.mimeType,
     );
 
     return resultado.match(
@@ -172,14 +175,25 @@ class CertificateRepositoryImpl implements CertificateRepository {
   /// fluxo do módulo 2) — fotos de celular modernas passam facilmente de
   /// 4000px de largura, muito além do que qualquer modelo multimodal
   /// precisa para ler texto de um certificado, e o excesso só aumenta
-  /// tempo de upload e custo de tokens.
-  List<int> _comprimir(List<int> bytes, {int larguraMaxima = 1600}) {
+  /// tempo de upload e custo de tokens. PDF não passa por `package:image`
+  /// (não é um formato raster — o decoder retornaria null de qualquer
+  /// forma) e vai para o LLM como está: a Gemini API lê PDF nativamente via
+  /// `inline_data`, sem precisar convertê-lo para imagem antes.
+  ({List<int> bytes, String mimeType}) _comprimir(
+    List<int> bytes,
+    String mimeTypeOriginal, {
+    int larguraMaxima = 1600,
+  }) {
+    if (mimeTypeOriginal == 'application/pdf') {
+      return (bytes: bytes, mimeType: mimeTypeOriginal);
+    }
+
     final decoded = img.decodeImage(Uint8List.fromList(bytes));
-    if (decoded == null) return bytes;
+    if (decoded == null) return (bytes: bytes, mimeType: mimeTypeOriginal);
 
     final redimensionada =
         decoded.width > larguraMaxima ? img.copyResize(decoded, width: larguraMaxima) : decoded;
-    return img.encodeJpg(redimensionada, quality: 85);
+    return (bytes: img.encodeJpg(redimensionada, quality: 85), mimeType: 'image/jpeg');
   }
 
   DateTime? _parseDataOpcional(dynamic valor) {
