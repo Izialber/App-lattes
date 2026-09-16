@@ -55,23 +55,31 @@ final extrairDadosCertificadoLlmProvider = Provider(
 class CertificateCaptureState {
   final List<CertificadoCapturado> certificados;
   final bool processando;
+  final int totalSelecionado;
+  final int processadosAteAgora;
   final String? erro;
 
   const CertificateCaptureState({
     this.certificados = const [],
     this.processando = false,
+    this.totalSelecionado = 0,
+    this.processadosAteAgora = 0,
     this.erro,
   });
 
   CertificateCaptureState copyWith({
     List<CertificadoCapturado>? certificados,
     bool? processando,
+    int? totalSelecionado,
+    int? processadosAteAgora,
     String? erro,
     bool limparErro = false,
   }) {
     return CertificateCaptureState(
       certificados: certificados ?? this.certificados,
       processando: processando ?? this.processando,
+      totalSelecionado: totalSelecionado ?? this.totalSelecionado,
+      processadosAteAgora: processadosAteAgora ?? this.processadosAteAgora,
       erro: limparErro ? null : (erro ?? this.erro),
     );
   }
@@ -115,7 +123,12 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
     Future<List<ArquivoSelecionado>> Function() selecionar,
     String mensagemErroSeletor,
   ) async {
-    state = state.copyWith(processando: true, limparErro: true);
+    state = state.copyWith(
+      processando: true,
+      totalSelecionado: 0,
+      processadosAteAgora: 0,
+      limparErro: true,
+    );
 
     final List<ArquivoSelecionado> arquivos;
     try {
@@ -125,8 +138,24 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
       return;
     }
 
+    // Lista vazia é o retorno normal quando o usuário fecha o seletor sem
+    // escolher nada — mas também acontece quando ele ESCOLHE uma
+    // pasta/arquivo que não tem nenhum formato aceito (ex.: pasta cheia de
+    // PDF, que este pipeline ainda não lê). Sem esta mensagem, os dois
+    // casos ficam indistinguíveis de "não fez nada" (relatado ao vivo).
+    if (arquivos.isEmpty) {
+      state = state.copyWith(
+        processando: false,
+        erro: 'Nenhum certificado foi adicionado. Se você selecionou arquivos ou uma pasta, '
+            'confira se o formato é aceito (JPG, PNG, HEIC/HEIF ou WEBP).',
+      );
+      return;
+    }
+
+    state = state.copyWith(totalSelecionado: arquivos.length);
     for (final arquivo in arquivos) {
       await _processarArquivo(arquivo);
+      state = state.copyWith(processadosAteAgora: state.processadosAteAgora + 1);
     }
 
     state = state.copyWith(processando: false);

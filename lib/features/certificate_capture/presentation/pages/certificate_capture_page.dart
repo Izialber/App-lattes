@@ -93,7 +93,23 @@ class CertificateCapturePage extends ConsumerWidget {
               ),
             ],
           ),
-        if (estado.processando) const LinearProgressIndicator(),
+        if (estado.processando) ...[
+          LinearProgressIndicator(
+            value: estado.totalSelecionado == 0
+                ? null // total ainda desconhecido (seletor de arquivo/pasta ainda aberto)
+                : estado.processadosAteAgora / estado.totalSelecionado,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: Text(
+              estado.totalSelecionado == 0
+                  ? 'Selecionando arquivos…'
+                  : 'Processando ${estado.processadosAteAgora} de '
+                      '${estado.totalSelecionado} certificados…',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
         Expanded(
           child: estado.certificados.isEmpty
               ? _estadoVazio(context)
