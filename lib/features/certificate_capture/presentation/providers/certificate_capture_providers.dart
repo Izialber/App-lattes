@@ -98,17 +98,30 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
 
   void limparErro() => state = state.copyWith(limparErro: true);
 
-  Future<void> selecionarESincronizarArquivos() async {
+  Future<void> selecionarESincronizarArquivos() => _selecionarEProcessar(
+        () => ref.read(certificateUploadDatasourceProvider).selecionarImagens(),
+        'Não foi possível abrir o seletor de arquivo',
+      );
+
+  /// Seleciona uma pasta inteira (com subpastas) de uma vez — ver
+  /// `CertificateUploadDatasourceWeb.selecionarPasta` para o porquê de não
+  /// existir um equivalente confiável em mobile.
+  Future<void> selecionarPastaESincronizar() => _selecionarEProcessar(
+        () => ref.read(certificateUploadDatasourceProvider).selecionarPasta(),
+        'Não foi possível abrir o seletor de pasta',
+      );
+
+  Future<void> _selecionarEProcessar(
+    Future<List<ArquivoSelecionado>> Function() selecionar,
+    String mensagemErroSeletor,
+  ) async {
     state = state.copyWith(processando: true, limparErro: true);
 
     final List<ArquivoSelecionado> arquivos;
     try {
-      arquivos = await ref.read(certificateUploadDatasourceProvider).selecionarImagens();
+      arquivos = await selecionar();
     } catch (e) {
-      state = state.copyWith(
-        processando: false,
-        erro: 'Não foi possível abrir o seletor de arquivo: $e',
-      );
+      state = state.copyWith(processando: false, erro: '$mensagemErroSeletor: $e');
       return;
     }
 
@@ -126,7 +139,9 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
         );
 
     final capturado = resultadoCaptura.match((falha) {
-      state = state.copyWith(erro: 'Falha ao capturar "${arquivo.nomeArquivo}": ${falha.message}');
+      state = state.copyWith(
+        erro: 'Falha ao capturar "${arquivo.caminhoRelativo}": ${falha.message}',
+      );
       return null;
     }, (c) => c);
     if (capturado == null) return;

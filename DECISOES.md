@@ -266,3 +266,51 @@ diretamente do contrato já fixado pelas entidades/interfaces existentes:
 2. **CORS da OpenAI a partir do navegador** ainda não foi validado contra uma chave real em
    produção (ver comentário em `openai_llm_datasource.dart`) — só o Gemini foi desenhado com
    confiança de que funciona sem proxy, por já ter essa confirmação em RISCOS.md.
+
+## Bugs encontrados e corrigidos ao vivo, testando o deploy (2026-09-16)
+
+Testado direto em produção (`izialber.com.br/app-lattes/`) depois do Módulo 2 no ar. Três
+achados reais, nenhum hipotético:
+
+1. **"Esqueci minha senha" sempre "funcionava" mesmo sem conta** — o Firebase tem proteção
+   contra enumeração de e-mail ligada por padrão (retorna sucesso mesmo para e-mail sem conta,
+   por segurança). Não é bug — é o comportamento correto e não deve ser alterado (explicar
+   "essa conta não existe" seria uma vulnerabilidade de enumeração de usuário). A causa real do
+   caso relatado: nenhuma conta com e-mail/senha tinha sido criada de fato (só havia um usuário
+   de teste `teste-ui-claude@example.com` no Firebase Console) — confirmado direto no Console
+   (Authentication → Users), não só por inspeção de código.
+2. **`gemini-2.0-flash` (id fixado em `GeminiLlmDatasource`) foi descontinuado pela Google** —
+   toda chamada retornava 404. Trocado para o alias oficial `gemini-flash-latest`, que a Google
+   promete manter sempre apontando para o Flash recomendado (ver
+   https://ai.google.dev/gemini-api/docs/models) — evita que o id fique stale de novo sem
+   precisar de um novo deploy toda vez que a Google descontinuar uma versão.
+3. **Mensagem de erro genérica demais para diagnosticar em produção** — `DioException.message`
+   só dizia "response has a status code de 400", sem a razão real. Descoberto que a Gemini API
+   usa 400 (não 401) para chave de API inválida, então esse detalhe importa: agora
+   `LlmApiException.deChamadaHttp` extrai `error.message` do corpo de resposta (formato comum a
+   Gemini e OpenAI) e `isQuotaOrAuth` passa a considerar 400 também.
+
+Também adicionado: ícone de configuração de LLM na tela de importação do Lattes (não só na de
+captura), depois de relato de que sumia na versão mobile — provavelmente por exigir navegar até
+a tela de captura primeiro, que por sua vez exige um currículo já importado.
+
+## Seleção de pasta inteira no Módulo 2 (2026-09-16)
+
+Pedido do usuário: poder selecionar uma pasta e o app ver todos os arquivos dela E de
+subpastas, em vez de só seleção múltipla de arquivos avulsos. Antes de implementar, foi
+discutida uma alternativa mais radical — usuário escolhe manualmente qual entrada do currículo
+Lattes cada certificado comprova, eliminando a extração via LLM (o próprio XML já tem título/
+instituição/carga horária/data de cada item). Decisão do usuário: manter o pipeline de LLM como
+está por enquanto; a seleção de pasta é um complemento ao fluxo atual, não uma substituição — a
+ideia de vínculo manual fica registrada aqui para retomar depois se fizer sentido.
+
+Implementação: `file_picker` não suporta seleção de pasta no web (confirmado lendo o código
+fonte do pacote — nenhuma implementação usa `webkitdirectory`). `CertificateUploadDatasourceWeb.
+selecionarPasta()` é uma implementação própria via `package:web` puro (mesmo padrão de
+`CameraServiceWeb`/`HeicConverterWeb`): cria um `<input type="file">` oculto com o atributo não
+padronizado `webkitdirectory` (suportado em Chrome/Edge/Safari/Firefox recente), o que faz o
+navegador listar recursivamente todos os arquivos de todas as subpastas num único `FileList` —
+cada `File` carrega `webkitRelativePath` com o caminho original, preservado em
+`ArquivoSelecionado.caminhoRelativo` para mensagens de erro mais úteis. Sem equivalente
+confiável em mobile — por isso a UI oferece as duas opções lado a lado (menu no FAB), com
+seleção de arquivo avulso continuando como caminho principal.

@@ -37,15 +37,44 @@ class CertificateCapturePage extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: estado.processando
-            ? null
-            : () => ref
-                .read(certificateCaptureControllerProvider.notifier)
-                .selecionarESincronizarArquivos(),
+        onPressed: estado.processando ? null : () => _abrirMenuDeSelecao(context, ref),
         icon: const Icon(Icons.add_photo_alternate_outlined),
-        label: const Text('Selecionar certificados'),
+        label: const Text('Adicionar certificados'),
       ),
       body: _corpo(context, ref, estado),
+    );
+  }
+
+  Future<void> _abrirMenuDeSelecao(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(certificateCaptureControllerProvider.notifier);
+    return showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.add_photo_alternate_outlined),
+              title: const Text('Selecionar arquivos'),
+              onTap: () {
+                Navigator.of(context).pop();
+                controller.selecionarESincronizarArquivos();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_open_outlined),
+              title: const Text('Selecionar uma pasta inteira'),
+              subtitle: const Text(
+                'Inclui todas as subpastas. Pode não funcionar em alguns navegadores mobile.',
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                controller.selecionarPastaESincronizar();
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
