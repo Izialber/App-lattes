@@ -56,10 +56,7 @@ class GeminiLlmDatasource {
         },
       );
     } on DioException catch (e) {
-      throw LlmApiException(
-        'Falha ao chamar a API do Gemini: ${e.message}',
-        statusCode: e.response?.statusCode,
-      );
+      throw LlmApiException.deChamadaHttp('Gemini', e);
     }
 
     return decodificarJsonDoModelo(_extrairTexto(response.data));

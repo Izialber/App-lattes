@@ -52,10 +52,7 @@ class OpenAiLlmDatasource {
         },
       );
     } on DioException catch (e) {
-      throw LlmApiException(
-        'Falha ao chamar a API da OpenAI: ${e.message}',
-        statusCode: e.response?.statusCode,
-      );
+      throw LlmApiException.deChamadaHttp('OpenAI', e);
     }
 
     return decodificarJsonDoModelo(_extrairTexto(response.data));

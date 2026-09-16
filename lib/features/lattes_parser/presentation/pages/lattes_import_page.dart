@@ -33,6 +33,15 @@ class LattesImportPage extends ConsumerWidget {
               icon: const Icon(Icons.add_photo_alternate_outlined),
               onPressed: () => context.go(AppRoutes.capturarCertificados),
             ),
+          // Sempre visível (não só depois de capturar certificados) — é o
+          // único jeito de chegar na configuração de chave de API, então
+          // não pode depender de o usuário já ter importado um currículo
+          // ou navegado até a tela de captura primeiro.
+          IconButton(
+            tooltip: 'Configurar provedor de LLM',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.go(AppRoutes.configuracoesLlm),
+          ),
           IconButton(
             tooltip: 'Sair',
             icon: const Icon(Icons.logout),
