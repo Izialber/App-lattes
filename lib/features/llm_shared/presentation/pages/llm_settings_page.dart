@@ -61,6 +61,8 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
                       .selecionarProvedor(selecionados.first),
             ),
             const SizedBox(height: 16),
+            _instrucoesChave(context, estado.provider),
+            const SizedBox(height: 16),
             TextField(
               controller: _controladorChave,
               obscureText: true,
@@ -101,6 +103,56 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Sem `url_launcher` no projeto — o endereço é `SelectableText` para o
+  /// usuário copiar e abrir manualmente numa nova aba, em vez de um link
+  /// clicável.
+  Widget _instrucoesChave(BuildContext context, LlmProviderEscolhido provider) {
+    final (String url, List<String> passos) = switch (provider) {
+      LlmProviderEscolhido.geminiFlash => (
+          'https://aistudio.google.com/apikey',
+          const [
+            'Entre com sua conta Google (a mesma que você já usa no app é a mais simples).',
+            'Clique em "Create API key" (ou "Criar chave de API").',
+            'Copie a chave gerada e cole no campo abaixo.',
+          ],
+        ),
+      LlmProviderEscolhido.gpt4oMini => (
+          'https://platform.openai.com/api-keys',
+          const [
+            'Entre ou crie uma conta na OpenAI (requer cadastrar um método de pagamento).',
+            'Clique em "Create new secret key".',
+            'Copie a chave imediatamente — ela só é exibida uma vez — e cole abaixo.',
+          ],
+        ),
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Como conseguir a chave', style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 4),
+          SelectableText(
+            url,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          for (final passo in passos)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+              child: Text('•  $passo'),
+            ),
+        ],
       ),
     );
   }
