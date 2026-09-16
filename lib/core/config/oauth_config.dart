@@ -7,15 +7,15 @@ import '../../features/cloud_sync/domain/entities/cloud_provider.dart';
 /// `redirect_uri` fixo (só o domínio configurado no Google Cloud/Azure
 /// recebe o `code`) e o PKCE (o `code_verifier` nunca sai do navegador).
 ///
-/// PENDENTE: preencher [googleClientId] com o Client ID gerado no Google
-/// Cloud Console (tipo "Aplicativo da Web", redirect URI
-/// `https://izialber.com.br/app-lattes/oauth/callback`) assim que
-/// disponível. Enquanto estiver vazio, a tela de login mantém o botão do
-/// Google desabilitado em vez de tentar iniciar um fluxo quebrado.
+/// [googleClientId] preenchido com o Client ID do projeto "Certificados
+/// Lattes" no Google Cloud Console (tipo "Aplicativo da Web"), app OAuth em
+/// modo "Testing" (Externo) com o próprio usuário como test user — ver
+/// DECISOES.md/RISCOS.md para o passo de publicar em produção mais adiante.
 class OAuthConfig {
   OAuthConfig._();
 
-  static const String googleClientId = '';
+  static const String googleClientId =
+      '880663744398-p9hm87tu007vqr7qtud93tq472hpolgf.apps.googleusercontent.com';
   static const String microsoftClientId = '';
 
   /// Precisa bater exatamente com uma "Authorized redirect URI" cadastrada
