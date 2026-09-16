@@ -126,6 +126,11 @@ class CertificateUploadDatasourceWeb implements CertificateUploadDatasource {
         if (!completer.isCompleted) completer.complete(null);
       }).toJS;
 
+      // click() precisa ser chamado de forma síncrona em relação ao gesto
+      // do usuário (nenhum `await` entre o tap e aqui) — navegadores
+      // recusam abrir o seletor de arquivo fora de um user gesture ativo.
+      input.click();
+
       final arquivos = await completer.future;
       if (arquivos == null) return const [];
 
