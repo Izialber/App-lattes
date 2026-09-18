@@ -113,6 +113,38 @@ void main() {
       resultado.match((falha) => expect(falha, isA<DossieFailure>()), (_) => fail('esperava Left'));
       verifyNever(() => localStore.salvarEdital(any()));
     });
+
+    test('ignora itens malformados de "criterios" e coage tipos inesperados', () async {
+      // Achado da revisão de código: um `as Map`/`as String?` direto num
+      // item malformado derrubava a extração do edital INTEIRO por causa
+      // de UM item ruim, em vez de só ignorar aquele item.
+      when(() => llmEdital.extrairCriterios(any())).thenAnswer((_) async => {
+            'orgaoOuBanca': 42, // tipo errado (número em vez de string)
+            'criterios': [
+              'isso não é um objeto', // item malformado — deve ser ignorado
+              {
+                'descricao': 'Doutorado',
+                'pontosPorUnidade': '10,5', // string com vírgula decimal
+                'limiteMaximoUnidades': '1 título', // string com texto junto
+              },
+            ],
+          });
+
+      final resultado = await repository.extrairCriterios(
+        editalId: 'edital1',
+        nomeArquivoOriginal: 'edital.pdf',
+        editalPdfBytes: const [1, 2, 3],
+      );
+
+      expect(resultado.isRight(), isTrue);
+      resultado.match((_) => fail('esperava Right'), (edital) {
+        expect(edital.orgaoOuBanca, '42');
+        expect(edital.criterios, hasLength(1));
+        expect(edital.criterios.single.descricao, 'Doutorado');
+        expect(edital.criterios.single.pontosPorUnidade, 10.5);
+        expect(edital.criterios.single.limiteMaximoUnidades, 1);
+      });
+    });
   });
 
   group('sugerirVinculos', () {

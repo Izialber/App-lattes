@@ -471,3 +471,52 @@ navegação até a tela (tap no menu do FAB) já é o gesto do usuário que `get
 Não testado ao vivo — depende de `dart:ui_web`/`HtmlElementView.fromTagName`, que não pude
 verificar contra o SDK Flutter real deste projeto (sem SDK neste ambiente). Se a versão do
 Flutter no pipeline de build for mais antiga que ~3.10, essa API pode não existir.
+
+## Revisão de código dos módulos 2-4 (2026-09-18)
+
+Rodei `/code-review high` sobre tudo implementado nesta sessão (`839a664..HEAD`, 67 arquivos)
+enquanto trabalhava em outra coisa, seguindo a orientação do usuário de não parar esperando por
+ele. 10 achados, 6 corrigidos na sequência (mais sérios primeiro):
+
+1. **Corrupção silenciosa de upload no fallback do 308** (`GoogleDriveDatasource.enviarChunk`):
+   quando a resposta 308 não vinha com header `Range` legível, o código fabricava `offset + 1`
+   bytes confirmados em vez de admitir que não sabia quantos bytes o servidor recebeu — o
+   próximo chunk pularia bytes nunca confirmados, corrompendo o PDF enviado. Corrigido para cair
+   em `offset` (sem avanço nenhum) nesse caso, forçando reenviar o mesmo chunk.
+2. **Casts diretos em JSON do LLM sem tratamento**, em dois lugares (`CertificateRepositoryImpl.
+   extrairDados` e `DossieRepositoryImpl.extrairCriterios`): um `as String?`/`as num?` direto
+   numa resposta com tipo inesperado (ex.: `cargaHorariaHoras: "40h"`) lançava uma exceção não
+   capturada — o certificado ficava travado para sempre em "extraindoDados", ou a extração do
+   edital inteiro falhava por causa de UM item malformado. Trocado por coerção defensiva
+   (`_comoTextoOpcional`/`_comoInteiroOpcional`/`_comoDoubleOpcional`) que tenta converter em vez
+   de assumir o tipo, e itens malformados de `criterios` agora são só ignorados
+   (`.whereType<Map>()`), não derrubam o edital inteiro.
+3. **`normalizarFormatoImagem` não persistia falha em exceções genéricas** (só no caso
+   específico `HeicConversionUnsupportedException`) — um reload de aba fazia o certificado
+   "voltar" ao status anterior, escondendo a falha real.
+4. **Botão único de "tentar novamente" sempre pulava direto para a extração**, mesmo quando
+   quem tinha falhado era a normalização HEIC — reenviava bytes HEIC não convertidos para a API
+   do LLM. `reextrair` agora sempre repete a normalização (idempotente) antes de extrair.
+5. **Busca da pasta do Drive repetida a cada certificado** dentro de uma sessão de sincronização
+   (`sincronizarTodos`) — N buscas redundantes na Drive API pelo mesmo id, que não muda.
+   `CloudStorageRepositoryImpl` ganhou um cache de instância (`_pastaId()`), compartilhado entre
+   `garantirPastaDedicada` e `enviarArquivo`.
+6. **Upload em chunks de verdade implementado** (não era bem um achado da revisão, mas foi feito
+   na mesma leva): `enviarArquivo` agora envia em fatias de 2MiB com progresso persistido a cada
+   chunk, em vez de um PUT só do arquivo inteiro — `GoogleDriveDatasource.enviarChunk` ganhou o
+   parâmetro `tamanhoTotalArquivo` (o `Content-Range` precisa do tamanho total do arquivo, não
+   só do chunk atual). Guard-rail contra loop infinito se o servidor nunca confirmar progresso
+   (5 tentativas sem avanço → falha explícita).
+
+Achados não corrigidos (severidade menor, escolha deliberada de priorizar os acima):
+7. `compilarDossieFinal` não comunica no resultado quantos certificados PDF-de-origem foram
+   excluídos da mesclagem — só o checklist avisa ANTES de compilar (ver rodada anterior).
+8. Certificados WEBP não testados contra o decoder de `package:pdf`/`package:image` — teoria,
+   não confirmado como bug real.
+9. Erros da câmera ao vivo usam `String` bruta (`'$e'`) em vez do modelo `Either<Failure,...>`
+   do resto do app — `CameraCaptureDatasource` (que prometeria essa tradução) nunca chegou a
+   ser injetado em lugar nenhum.
+
+5 testes novos cobrindo os achados corrigidos (chunking de verdade com `tamanhoDoChunk`
+configurável só para teste, cache de pasta compartilhado, coerção de tipo em JSON malformado,
+persistência de falha genérica). 115 testes no total.

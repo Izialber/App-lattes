@@ -194,20 +194,31 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
 
     state = state.copyWith(certificados: [...state.certificados, capturado]);
 
-    final resultadoNormalizacao =
-        await ref.read(converterHeicParaJpegProvider).call(capturado.id);
-    resultadoNormalizacao.match(
-      (falha) => _marcarFalha(capturado, falha.message),
-      (_) {},
-    );
-    if (resultadoNormalizacao.isLeft()) return;
-
     await reextrair(capturado.id);
   }
 
-  /// Chamado tanto pelo pipeline automático quanto por um botão "Tentar
-  /// novamente" na UI para um certificado que falhou na extração.
+  /// Chamado tanto pelo pipeline automático quanto pelo botão "Tentar
+  /// novamente" na UI — para QUALQUER certificado com falha, não só falha
+  /// de extração: repete a normalização HEIC antes de extrair (idempotente
+  /// quando a imagem já não é HEIC, ver `ConverterHeicParaJpeg`), porque o
+  /// único botão de retry da UI não distinguia entre as duas causas
+  /// possíveis de falha e sempre pulava direto para a extração, reenviando
+  /// bytes HEIC não convertidos para a API do LLM quando quem tinha
+  /// falhado era a conversão (achado da revisão de código).
   Future<void> reextrair(String certificadoId) async {
+    final resultadoNormalizacao =
+        await ref.read(converterHeicParaJpegProvider).call(certificadoId);
+    if (resultadoNormalizacao.isLeft()) {
+      resultadoNormalizacao.match(
+        (falha) {
+          final atual = state.certificados.firstWhere((c) => c.id == certificadoId);
+          _marcarFalha(atual, falha.message);
+        },
+        (_) {},
+      );
+      return;
+    }
+
     final resultado = await ref.read(extrairDadosCertificadoLlmProvider).call(certificadoId);
     resultado.match(
       (falha) {

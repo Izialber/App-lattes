@@ -115,27 +115,28 @@ class GoogleDriveDatasource {
     return sessionUrl;
   }
 
-  /// Envia [bytes] a partir de [offset] na sessão resumível. Nesta
-  /// implementação, [bytes] é sempre o arquivo completo a partir do byte 0
-  /// (PDFs de certificado são pequenos o bastante para caber num único PUT)
-  /// — o parâmetro [offset] e o retorno (bytes confirmados pelo servidor)
-  /// já seguem o contrato de upload em partes para quando isso for
-  /// necessário (arquivos maiores, retomada após 308), sem exigir mudança
-  /// de assinatura depois. `idArquivo` só vem preenchido quando o upload
+  /// Envia [bytes] a partir de [offset] na sessão resumível — [bytes] pode
+  /// ser só uma FATIA do arquivo (upload em chunks de verdade) ou o
+  /// restante inteiro de uma vez (chunk único, quando o chamador decide que
+  /// o arquivo é pequeno o bastante). [tamanhoTotalArquivo] é sempre o
+  /// tamanho do arquivo COMPLETO, não deste chunk — obrigatório no cabeçalho
+  /// `Content-Range` do protocolo do Google mesmo quando só uma fatia está
+  /// sendo enviada agora. `idArquivo` só vem preenchido quando o upload
   /// termina (200/201) — a resposta já inclui o `id` do arquivo criado
   /// porque `iniciarSessaoUploadResumivel` pediu `fields=id`.
   Future<({int bytesConfirmados, String? idArquivo})> enviarChunk({
     required String sessionUrl,
     required List<int> bytes,
     required int offset,
+    required int tamanhoTotalArquivo,
   }) async {
-    final tamanhoTotal = offset + bytes.length;
+    final fimDoChunk = offset + bytes.length;
     final resposta = await _dio.put<dynamic>(
       sessionUrl,
       data: Uint8List.fromList(bytes),
       options: Options(
         headers: {
-          'Content-Range': 'bytes $offset-${tamanhoTotal - 1}/$tamanhoTotal',
+          'Content-Range': 'bytes $offset-${fimDoChunk - 1}/$tamanhoTotalArquivo',
           'Content-Length': bytes.length,
         },
         // 308 (Resume Incomplete) é uma resposta VÁLIDA do protocolo de
@@ -148,11 +149,18 @@ class GoogleDriveDatasource {
     if (resposta.statusCode == 308) {
       final range = resposta.headers.value('range'); // formato "bytes=0-12345"
       final fim = range?.split('-').last;
-      final bytesConfirmados = fim != null ? int.tryParse(fim) : null;
-      return (bytesConfirmados: (bytesConfirmados ?? offset) + 1, idArquivo: null);
+      final fimConfirmado = fim != null ? int.tryParse(fim) : null;
+      // Sem header Range (ou sem número legível): a Drive API omite esse
+      // header quando NENHUM byte foi recebido ainda para esta sessão —
+      // nunca assumir progresso que o servidor não confirmou de verdade
+      // (fabricar um valor aqui corrompe silenciosamente o arquivo: o
+      // próximo chunk pularia bytes que o servidor não tem). O fallback
+      // seguro é "nada mudou desde [offset]", forçando reenviar o mesmo
+      // chunk na próxima tentativa.
+      return (bytesConfirmados: fimConfirmado != null ? fimConfirmado + 1 : offset, idArquivo: null);
     }
 
     final idArquivo = resposta.data is Map ? (resposta.data as Map)['id'] as String? : null;
-    return (bytesConfirmados: tamanhoTotal, idArquivo: idArquivo);
+    return (bytesConfirmados: fimDoChunk, idArquivo: idArquivo);
   }
 }

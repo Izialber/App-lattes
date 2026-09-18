@@ -107,6 +107,7 @@ void main() {
             sessionUrl: any(named: 'sessionUrl'),
             bytes: any(named: 'bytes'),
             offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
           )).thenAnswer((_) async => (bytesConfirmados: 3, idArquivo: 'arquivo123'));
 
       final resultado = await repository.enviarArquivo(taskBase());
@@ -127,6 +128,7 @@ void main() {
             sessionUrl: any(named: 'sessionUrl'),
             bytes: any(named: 'bytes'),
             offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
           )).thenAnswer((_) async => (bytesConfirmados: 5, idArquivo: 'arquivo123'));
 
       final resultado = await repository.enviarArquivo(
@@ -143,7 +145,76 @@ void main() {
             sessionUrl: 'https://sessao-existente',
             bytes: pdfBytes.sublist(2),
             offset: 2,
+            tamanhoTotalArquivo: 5,
           )).called(1);
+    });
+
+    test('envia em múltiplos chunks quando o arquivo excede o tamanho de um chunk', () async {
+      // tamanhoDoChunk=4 força 3 chunks para um arquivo de 10 bytes
+      // (4+4+2) — exercita o loop de verdade, não só o caminho de 1 chunk.
+      repository = CloudStorageRepositoryImpl(
+        googleDrive,
+        oneDrive,
+        localStore,
+        tamanhoDoChunk: 4,
+      );
+      final pdfBytes = Uint8List.fromList(List.generate(10, (i) => i));
+      when(() => localStore.lerPdf('task1')).thenReturn(pdfBytes);
+      when(() => googleDrive.criarPastaSeNaoExistir(any())).thenAnswer((_) async => 'pasta123');
+      when(() => googleDrive.iniciarSessaoUploadResumivel(
+            pastaId: any(named: 'pastaId'),
+            nomeArquivo: any(named: 'nomeArquivo'),
+            tamanhoBytes: any(named: 'tamanhoBytes'),
+          )).thenAnswer((_) async => 'https://sessao-de-upload');
+
+      final chunksRecebidos = <List<int>>[];
+      when(() => googleDrive.enviarChunk(
+            sessionUrl: any(named: 'sessionUrl'),
+            bytes: any(named: 'bytes'),
+            offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
+          )).thenAnswer((invocation) async {
+        final offset = invocation.namedArguments[#offset] as int;
+        final bytes = invocation.namedArguments[#bytes] as List<int>;
+        chunksRecebidos.add(bytes);
+        final fim = offset + bytes.length;
+        return (bytesConfirmados: fim, idArquivo: fim >= pdfBytes.length ? 'arquivo123' : null);
+      });
+
+      final resultado = await repository.enviarArquivo(taskBase());
+
+      expect(resultado.isRight(), isTrue);
+      resultado.match((_) => fail('esperava Right'), (t) {
+        expect(t.status, UploadStatus.concluido);
+        expect(t.bytesEnviados, 10);
+      });
+      expect(chunksRecebidos, [
+        pdfBytes.sublist(0, 4),
+        pdfBytes.sublist(4, 8),
+        pdfBytes.sublist(8, 10),
+      ]);
+    });
+
+    test('garantirPastaDedicada e enviarArquivo compartilham o cache da pasta', () async {
+      when(() => localStore.lerPdf(any())).thenReturn(Uint8List.fromList([1, 2, 3]));
+      when(() => googleDrive.criarPastaSeNaoExistir(any())).thenAnswer((_) async => 'pasta123');
+      when(() => googleDrive.iniciarSessaoUploadResumivel(
+            pastaId: any(named: 'pastaId'),
+            nomeArquivo: any(named: 'nomeArquivo'),
+            tamanhoBytes: any(named: 'tamanhoBytes'),
+          )).thenAnswer((_) async => 'https://sessao-de-upload');
+      when(() => googleDrive.enviarChunk(
+            sessionUrl: any(named: 'sessionUrl'),
+            bytes: any(named: 'bytes'),
+            offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
+          )).thenAnswer((_) async => (bytesConfirmados: 3, idArquivo: 'arquivo123'));
+
+      await repository.garantirPastaDedicada(taskBase());
+      await repository.enviarArquivo(taskBase());
+      await repository.enviarArquivo(taskBase(id: 'task2'));
+
+      verify(() => googleDrive.criarPastaSeNaoExistir(any())).called(1);
     });
 
     test('CloudStorageFailure transitória em erro 500 (fila deve tentar de novo)', () async {

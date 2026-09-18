@@ -21,19 +21,45 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
   final OneDriveGraphDatasource _oneDrive;
   final UploadQueueLocalStore _localStore;
 
-  const CloudStorageRepositoryImpl(this._googleDrive, this._oneDrive, this._localStore);
+  CloudStorageRepositoryImpl(
+    this._googleDrive,
+    this._oneDrive,
+    this._localStore, {
+    int tamanhoDoChunk = _tamanhoDoChunkPadrao,
+  }) : _tamanhoDoChunk = tamanhoDoChunk;
 
   static const _falhaOneDrive = CloudStorageFailure(
     'OneDrive ainda não é suportado neste app — use o Google Drive.',
     isTransient: false,
   );
 
+  /// Enviar N certificados numa sessão (`CloudSyncController.sincronizarTodos`)
+  /// chamava `criarPastaSeNaoExistir` uma vez por arquivo — N buscas
+  /// redundantes na Drive API pelo mesmo id, que nunca muda durante a vida
+  /// desta instância (achado da revisão de código). `garantirPastaDedicada`
+  /// também preenche este cache, não só `enviarArquivo`.
+  String? _pastaIdCache;
+
+  Future<String> _pastaId() async {
+    return _pastaIdCache ??= await _googleDrive.criarPastaSeNaoExistir(AppConstants.cloudFolderName);
+  }
+
+  /// Tamanho de cada PUT do upload resumível — precisa ser múltiplo de
+  /// 256KiB (exigência da Drive API para todo chunk que não seja o
+  /// último). 2MiB é um meio-termo comum: grande o bastante para não
+  /// multiplicar round-trips em arquivos de alguns MB, pequeno o bastante
+  /// para não manter o arquivo inteiro num único corpo de request.
+  /// Configurável via construtor só para teste (arquivo de teste pequeno +
+  /// chunk pequeno, para exercitar o loop de verdade sem um PDF de MBs).
+  static const _tamanhoDoChunkPadrao = 256 * 1024 * 8;
+  final int _tamanhoDoChunk;
+
   @override
   Future<Either<Failure, String>> garantirPastaDedicada(UploadTask task) async {
     if (task.provider == CloudProvider.oneDrive) return const Left(_falhaOneDrive);
 
     try {
-      return Right(await _googleDrive.criarPastaSeNaoExistir(AppConstants.cloudFolderName));
+      return Right(await _pastaId());
     } on DioException catch (e) {
       return Left(_falhaDeDioException(e));
     } catch (e) {
@@ -53,7 +79,7 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
     }
 
     try {
-      final pastaId = await _googleDrive.criarPastaSeNaoExistir(AppConstants.cloudFolderName);
+      final pastaId = await _pastaId();
 
       // Retoma a sessão já aberta (reload de aba no meio do upload) em vez
       // de começar de novo — requisito do contrato de `enviarArquivo` (ver
@@ -65,28 +91,54 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
             tamanhoBytes: bytes.length,
           );
 
-      final restante = bytes.sublist(task.bytesEnviados);
-      final resultadoEnvio = await _googleDrive.enviarChunk(
-        sessionUrl: sessionUrl,
-        bytes: restante,
-        offset: task.bytesEnviados,
-      );
+      var tarefaAtual = task.copyWith(uploadSessionUrl: sessionUrl);
+      var offset = tarefaAtual.bytesEnviados;
+      var tentativasSemProgresso = 0;
 
-      final concluido = resultadoEnvio.bytesConfirmados >= bytes.length;
-      final atualizada = task.copyWith(
-        status: concluido ? UploadStatus.concluido : UploadStatus.falhaTemporaria,
-        uploadSessionUrl: sessionUrl,
-        bytesEnviados: resultadoEnvio.bytesConfirmados,
-        idArquivoCloud: resultadoEnvio.idArquivo,
-      );
-      await _localStore.salvar(atualizada);
+      // Upload em chunks de verdade — cada chunk enviado tem o progresso
+      // persistido imediatamente, para um reload de aba no meio de um
+      // arquivo grande retomar do chunk certo em vez de reenviar tudo.
+      while (offset < bytes.length) {
+        final fim =
+            (offset + _tamanhoDoChunk < bytes.length) ? offset + _tamanhoDoChunk : bytes.length;
+        final chunk = bytes.sublist(offset, fim);
 
-      if (!concluido) {
-        return const Left(
-          CloudStorageFailure('Upload não concluiu numa única tentativa — tente novamente.'),
+        final resultadoEnvio = await _googleDrive.enviarChunk(
+          sessionUrl: sessionUrl,
+          bytes: chunk,
+          offset: offset,
+          tamanhoTotalArquivo: bytes.length,
         );
+
+        // Se o servidor não confirmar NENHUM byte novo (fallback seguro do
+        // 308 sem Range legível — ver GoogleDriveDatasource.enviarChunk),
+        // reenviar o mesmo chunk indefinidamente travaria a aba num loop
+        // infinito em vez de acabar em falha visível.
+        if (resultadoEnvio.bytesConfirmados <= offset) {
+          tentativasSemProgresso++;
+          if (tentativasSemProgresso >= 5) {
+            const mensagem = 'O Google Drive não confirmou progresso do upload após várias '
+                'tentativas — tente novamente mais tarde.';
+            await _localStore.salvar(
+              tarefaAtual.copyWith(status: UploadStatus.falhaTemporaria, mensagemErro: mensagem),
+            );
+            return const Left(CloudStorageFailure(mensagem));
+          }
+          continue;
+        }
+        tentativasSemProgresso = 0;
+
+        offset = resultadoEnvio.bytesConfirmados;
+        tarefaAtual = tarefaAtual.copyWith(
+          bytesEnviados: offset,
+          idArquivoCloud: resultadoEnvio.idArquivo,
+        );
+        await _localStore.salvar(tarefaAtual);
       }
-      return Right(atualizada);
+
+      final concluida = tarefaAtual.copyWith(status: UploadStatus.concluido);
+      await _localStore.salvar(concluida);
+      return Right(concluida);
     } on DioException catch (e) {
       final falha = _falhaDeDioException(e);
       await _localStore.salvar(

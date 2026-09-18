@@ -51,32 +51,49 @@ class DossieRepositoryImpl implements DossieRepository {
     required List<int> editalPdfBytes,
   }) async {
     final Map<String, dynamic> json;
+    final List<CriterioPontuacao> criterios;
     try {
       json = await _llmEditalDatasource.extrairCriterios(editalPdfBytes);
+      // Coerção defensiva, não cast direto: o schema pedido ao LLM no
+      // prompt não é imposto pela API — cada item de "criterios" que não
+      // vier no formato esperado é simplesmente ignorado, em vez de um
+      // `as Map`/`as String?` direto derrubar a extração inteira do edital
+      // por causa de UM item malformado (achado da revisão de código).
+      final criteriosBrutos = (json['criterios'] as List?) ?? const [];
+      criterios = criteriosBrutos
+          .whereType<Map>()
+          .map((c) => CriterioPontuacao(
+                id: _uuid.v4(),
+                descricao: c['descricao']?.toString() ?? 'Critério sem descrição',
+                pontosPorUnidade: _comoDoubleOpcional(c['pontosPorUnidade']),
+                limiteMaximoUnidades: _comoInteiroOpcional(c['limiteMaximoUnidades']),
+              ))
+          .toList();
     } catch (e) {
       return Left(DossieFailure('Falha ao interpretar o edital: $e'));
     }
 
-    final criteriosBrutos = (json['criterios'] as List?) ?? const [];
-    final criterios = criteriosBrutos.map((cBruto) {
-      final c = cBruto as Map;
-      return CriterioPontuacao(
-        id: _uuid.v4(),
-        descricao: c['descricao'] as String? ?? 'Critério sem descrição',
-        pontosPorUnidade: (c['pontosPorUnidade'] as num?)?.toDouble(),
-        limiteMaximoUnidades: (c['limiteMaximoUnidades'] as num?)?.toInt(),
-      );
-    }).toList();
-
     final edital = Edital(
       id: editalId,
       nomeArquivoOriginal: nomeArquivoOriginal,
-      orgaoOuBanca: json['orgaoOuBanca'] as String?,
+      orgaoOuBanca: json['orgaoOuBanca']?.toString(),
       criterios: criterios,
     );
 
     await _localStore.salvarEdital(edital);
     return Right(edital);
+  }
+
+  double? _comoDoubleOpcional(dynamic valor) {
+    if (valor == null) return null;
+    if (valor is num) return valor.toDouble();
+    return double.tryParse(valor.toString().replaceAll(',', '.'));
+  }
+
+  int? _comoInteiroOpcional(dynamic valor) {
+    if (valor == null) return null;
+    if (valor is num) return valor.round();
+    return int.tryParse(valor.toString().replaceAll(RegExp('[^0-9-]'), ''));
   }
 
   @override

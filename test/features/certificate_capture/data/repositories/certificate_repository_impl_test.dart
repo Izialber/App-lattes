@@ -146,6 +146,26 @@ void main() {
       );
     });
 
+    test('persiste falhaExtracao mesmo quando o erro não é HeicConversionUnsupportedException',
+        () async {
+      // Achado da revisão de código: sem persistir aqui, um reload perdia
+      // o estado de falha (a versão em Hive continuava "capturado").
+      final bytesHeic = Uint8List.fromList([1, 2, 3]);
+      when(() => localStore.buscar('c1')).thenReturn(certificadoBase());
+      when(() => localStore.lerImagem('c1')).thenReturn(bytesHeic);
+      when(() => heicConverter.pareceHeic(bytesHeic)).thenReturn(true);
+      when(() => heicConverter.converterParaJpeg(bytesHeic))
+          .thenThrow(Exception('erro inesperado de verdade'));
+
+      final resultado = await repository.normalizarFormatoImagem('c1');
+
+      expect(resultado.isLeft(), isTrue);
+      final chamadasSalvar = verify(() => localStore.salvar(captureAny())).captured;
+      final ultimoSalvo = chamadasSalvar.last as CertificadoCapturado;
+      expect(ultimoSalvo.status, StatusCertificado.falhaExtracao);
+      expect(ultimoSalvo.mensagemErro, contains('erro inesperado de verdade'));
+    });
+
     test('LocalStorageFailure quando o certificado não existe', () async {
       when(() => localStore.buscar('desconhecido')).thenReturn(null);
 
@@ -197,6 +217,35 @@ void main() {
       resultado.match((_) => fail('esperava Right'), (c) {
         expect(c.cargaHorariaExtraidaHoras, isNull);
         expect(c.dataExtraida, isNull);
+      });
+    });
+
+    test('tolera tipos inesperados no JSON do modelo em vez de lançar', () async {
+      // Achado da revisão de código: `json['cargaHorariaHoras'] as num?`
+      // lançaria (não capturado) se o modelo devolvesse uma string como
+      // "40h" — o certificado ficaria travado para sempre em
+      // "extraindoDados" em vez de cair em pendenteRevisao ou
+      // falhaExtracao.
+      when(() => localStore.buscar('c1')).thenReturn(certificadoBase());
+      when(() => localStore.lerImagem('c1')).thenReturn(Uint8List.fromList(List.filled(20, 1)));
+      when(() => llmDatasource.extrair(
+            imagemBytes: any(named: 'imagemBytes'),
+            mimeType: any(named: 'mimeType'),
+          )).thenAnswer(
+        (_) async => const Right({
+          'titulo': 123, // tipo errado (número em vez de string)
+          'instituicao': 'UFX',
+          'cargaHorariaHoras': '40h', // tipo errado (string em vez de número)
+        }),
+      );
+
+      final resultado = await repository.extrairDados('c1');
+
+      expect(resultado.isRight(), isTrue);
+      resultado.match((_) => fail('esperava Right'), (c) {
+        expect(c.status, StatusCertificado.pendenteRevisao);
+        expect(c.tituloExtraido, '123');
+        expect(c.cargaHorariaExtraidaHoras, 40);
       });
     });
 

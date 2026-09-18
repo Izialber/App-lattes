@@ -97,7 +97,13 @@ class CertificateRepositoryImpl implements CertificateRepository {
       );
       return Left(CaptureFailure(e.message));
     } catch (e) {
-      return Left(CaptureFailure('Falha ao converter HEIC: $e'));
+      // Sem persistir aqui, um reload perdia o estado de falha (a versão em
+      // Hive continua "capturado") — achado da revisão de código.
+      final mensagem = 'Falha ao converter HEIC: $e';
+      await _localStore.salvar(
+        certificado.copyWith(status: StatusCertificado.falhaExtracao, mensagemErro: mensagem),
+      );
+      return Left(CaptureFailure(mensagem));
     }
   }
 
@@ -142,17 +148,31 @@ class CertificateRepositoryImpl implements CertificateRepository {
         return Left(falha);
       },
       (json) async {
+        // Coerção defensiva, não cast direto: o schema pedido ao LLM no
+        // prompt não é imposto pela API — um modelo menor pode devolver
+        // cargaHorariaHoras como "40h" (string) ou titulo como número, e um
+        // `as String?`/`as num?` direto lançaria uma exceção não tratada
+        // aqui dentro do branch de sucesso, travando o certificado para
+        // sempre em "extraindoDados" (achado da revisão de código).
         final atualizado = certificado.copyWith(
           status: StatusCertificado.pendenteRevisao,
-          tituloExtraido: json['titulo'] as String?,
-          instituicaoExtraida: json['instituicao'] as String?,
-          cargaHorariaExtraidaHoras: (json['cargaHorariaHoras'] as num?)?.round(),
+          tituloExtraido: _comoTextoOpcional(json['titulo']),
+          instituicaoExtraida: _comoTextoOpcional(json['instituicao']),
+          cargaHorariaExtraidaHoras: _comoInteiroOpcional(json['cargaHorariaHoras']),
           dataExtraida: _parseDataOpcional(json['data']),
         );
         await _localStore.salvar(atualizado);
         return Right(atualizado);
       },
     );
+  }
+
+  String? _comoTextoOpcional(dynamic valor) => valor?.toString();
+
+  int? _comoInteiroOpcional(dynamic valor) {
+    if (valor == null) return null;
+    if (valor is num) return valor.round();
+    return int.tryParse(valor.toString().replaceAll(RegExp('[^0-9-]'), ''));
   }
 
   @override
