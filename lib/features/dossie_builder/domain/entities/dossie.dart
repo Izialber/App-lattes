@@ -56,6 +56,7 @@ class Dossie extends Equatable {
     List<VinculoAprovado>? vinculosRevisados,
     String? caminhoPdfFinal,
     String? mensagemDegradacao,
+    bool limparMensagemDegradacao = false,
     int? loteAtual,
     int? totalDeLotes,
   }) {
@@ -65,7 +66,9 @@ class Dossie extends Equatable {
       status: status ?? this.status,
       vinculosRevisados: vinculosRevisados ?? this.vinculosRevisados,
       caminhoPdfFinal: caminhoPdfFinal ?? this.caminhoPdfFinal,
-      mensagemDegradacao: mensagemDegradacao ?? this.mensagemDegradacao,
+      mensagemDegradacao: limparMensagemDegradacao
+          ? null
+          : (mensagemDegradacao ?? this.mensagemDegradacao),
       loteAtual: loteAtual ?? this.loteAtual,
       totalDeLotes: totalDeLotes ?? this.totalDeLotes,
     );

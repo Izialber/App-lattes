@@ -520,3 +520,28 @@ Achados não corrigidos (severidade menor, escolha deliberada de priorizar os ac
 5 testes novos cobrindo os achados corrigidos (chunking de verdade com `tamanhoDoChunk`
 configurável só para teste, cache de pasta compartilhado, coerção de tipo em JSON malformado,
 persistência de falha genérica). 115 testes no total.
+
+## Achado #7 corrigido: resultado da compilação agora avisa sobre PDFs excluídos (2026-09-18)
+
+O checklist já avisava, ANTES de compilar, quais certificados aprovados são PDF de origem e por
+isso não entram na mesclagem automática (ver "Suporte a PDF no Módulo 2"). Mas o RESULTADO da
+compilação em si não repetia esse aviso — um usuário que não reparasse no aviso anterior via só
+"compilado com sucesso", sem saber que o PDF final está incompleto. `DossieRepositoryImpl.
+_compilarDireto` agora recebe `totalPdfDeOrigemExcluidos` e, quando > 0, grava uma nota no mesmo
+campo `mensagemDegradacao` do dossiê (reaproveitado como campo genérico de "nota informativa",
+não só de degradação por memória) — `dossie_compile_page.dart` exibe essa nota como subtítulo
+abaixo de "Dossiê compilado com sucesso!".
+
+Efeito colateral encontrado: `Dossie.copyWith` tinha a mesma limitação já corrigida antes em
+`CertificadoCapturado.copyWith` — um `String? mensagemDegradacao` com fallback `??` nunca
+conseguia "limpar" o campo (só sobrescrever com outro valor não-nulo). Precisava disso para o
+caso comum (0 certificados excluídos → mensagem deve ficar `null`, não herdar uma mensagem de
+degradação de uma tentativa anterior já corrigida). Adicionado `limparMensagemDegradacao` (bool,
+default `false`) ao `copyWith`, mesmo padrão de antes.
+
+**Segunda rodada de `/code-review high` pedida pelo usuário ("revise mais uma vez tudo") não
+completou** — o coordenador e a maioria dos sub-agentes de busca falharam com HTTP 429 (limite de
+sessão da API da Claude, reset 15h America/São_Paulo). Nenhum achado novo veio dessa rodada além
+do que a primeira já tinha encontrado. Não re-tentada ainda nesta sessão; os 9 achados da primeira
+rodada continuam sendo a lista de referência (6 corrigidos, achado #7 corrigido nesta entrada,
+#8/#9 seguem deliberadamente adiados por severidade menor).

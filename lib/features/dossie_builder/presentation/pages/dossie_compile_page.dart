@@ -77,6 +77,7 @@ class _DossieCompilePageState extends ConsumerState<DossieCompilePage> {
           icone: Icons.check_circle,
           cor: Theme.of(context).colorScheme.primary,
           titulo: 'Dossiê compilado com sucesso!',
+          subtitulo: dossie.mensagemDegradacao,
           acao: FilledButton.icon(
             onPressed: () {
               final bytes = ref.read(dossieBuilderControllerProvider.notifier).lerPdfFinal(dossie.id);
@@ -130,6 +131,7 @@ class _DossieCompilePageState extends ConsumerState<DossieCompilePage> {
     required IconData icone,
     required Color cor,
     required String titulo,
+    String? subtitulo,
     Widget? acao,
   }) {
     return Column(
@@ -138,6 +140,16 @@ class _DossieCompilePageState extends ConsumerState<DossieCompilePage> {
         Icon(icone, size: 64, color: cor),
         const SizedBox(height: 16),
         Text(titulo, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+        if (subtitulo != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            subtitulo,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
         if (acao != null) ...[
           const SizedBox(height: 24),
           acao,

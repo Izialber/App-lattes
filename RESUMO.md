@@ -56,8 +56,11 @@ na sequência — o mais sério era um caso de corrupção silenciosa no upload 
 outros: dois casts diretos em JSON do LLM sem tratamento (travavam o certificado/edital em vez
 de cair em erro tratado), falha de conversão HEIC não persistida (some num reload), botão de
 "tentar novamente" que pulava a normalização HEIC, e busca redundante da pasta do Drive a cada
-certificado numa sincronização. Ver DECISOES.md para a lista completa, incluindo os achados não
-corrigidos por severidade menor.
+certificado numa sincronização. Um sétimo achado (resultado da compilação não avisava quantos
+certificados PDF-de-origem ficaram fora do PDF final) foi corrigido depois — a tela de
+compilação agora mostra essa contagem quando aplicável. Ver DECISOES.md para a lista completa,
+incluindo os achados não corrigidos por severidade menor. Uma segunda rodada de revisão pedida
+pelo usuário não completou por limite de taxa da API.
 
 115 testes unitários no total (110 anteriores + 5 novos da correção dos achados da revisão).
 
