@@ -50,18 +50,23 @@ automática, e a estratégia "em partes" de `DecidirEstrategiaDeMemoria` (para d
 não foi implementada pelo mesmo motivo. Duas novas telas (`/dossie/novo`, seleção do edital) e
 reescrita completa de `dossie_checklist_page`/`dossie_compile_page` (antes placeholder).
 
-**Revisão de código (`/code-review high`) sobre tudo isso** encontrou 6 bugs reais, corrigidos
-na sequência — o mais sério era um caso de corrupção silenciosa no upload resumível do Drive
-(fallback do 308 sem header `Range` fabricava progresso que o servidor nunca confirmou). Os
-outros: dois casts diretos em JSON do LLM sem tratamento (travavam o certificado/edital em vez
-de cair em erro tratado), falha de conversão HEIC não persistida (some num reload), botão de
-"tentar novamente" que pulava a normalização HEIC, e busca redundante da pasta do Drive a cada
-certificado numa sincronização. Um sétimo achado (resultado da compilação não avisava quantos
-certificados PDF-de-origem ficaram fora do PDF final) foi corrigido depois — a tela de
-compilação agora mostra essa contagem quando aplicável. Ver DECISOES.md para a lista completa,
-incluindo os achados não corrigidos por severidade menor. Uma segunda rodada de revisão pedida
-pelo usuário não completou por limite de taxa da API.
+**Duas rodadas de `/code-review high` sobre tudo isso** encontraram 20 achados no total, 15
+corrigidos. Da 1ª rodada (6 corrigidos): corrupção silenciosa no upload resumível do Drive
+(fallback do 308 sem header `Range` fabricava progresso nunca confirmado pelo servidor), dois
+casts diretos em JSON do LLM sem tratamento, falha de conversão HEIC não persistida, botão de
+"tentar novamente" que pulava a normalização HEIC, busca redundante da pasta do Drive a cada
+certificado — mais um sétimo achado (resultado da compilação não avisava quantos certificados
+PDF-de-origem ficaram fora) corrigido numa rodada de acompanhamento. Da 2ª rodada (9 corrigidos):
+`CertificadoCapturado`/`UploadTask.copyWith` nunca conseguiam limpar uma mensagem de erro antiga
+depois de um retry bem-sucedido, falha de normalização HEIC e falha de extração do LLM
+compartilhavam o mesmo status (agora `falhaNormalizacao` é separado), retry de upload sem
+confirmação de progresso não tinha backoff, validação de campos obrigatórios do LLM não pegava
+string vazia, tela de compilação recompilava do zero toda vez que reabria mesmo já concluída,
+três implementações inconsistentes de "achar item por id" unificadas com `package:collection`, e
+`bootstrap()` abria as 7 Hive boxes em série em vez de paralelo. Ver DECISOES.md para a lista
+completa, incluindo os achados não corrigidos por severidade menor (duplicação estrutural entre
+os 3 local stores, fora de escopo sem SDK Flutter para validar o refactor).
 
-115 testes unitários no total (110 anteriores + 5 novos da correção dos achados da revisão).
+119 testes unitários no total.
 
 Sem SDK Flutter neste ambiente — nada foi compilado; tudo revisado como texto.

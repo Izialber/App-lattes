@@ -125,6 +125,9 @@ dependencies:
                                    # vir generico (ex: "image.jpg" mesmo sendo HEIC) — ver
                                    # RISCOS.md, "Upload iOS com nome/mimetype genericos"
   uuid: ^4.5.1                    # [web ok]
+  collection: ^1.18.0              # [web ok] firstWhereOrNull etc. — já era dependência
+                                   # transitiva do Flutter, promovida a direta para não
+                                   # depender de versão resolvida por acaso (2ª revisão)
   intl: ^0.19.0                   # [web ok] formatacao de datas do XML Lattes (padrao dd/MM/yyyy)
   equatable: ^2.0.5               # [web ok] igualdade de valor para entidades de dominio
   freezed_annotation: ^2.4.4      # [web ok] entidades imutaveis + copyWith

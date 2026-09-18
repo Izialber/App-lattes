@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -129,13 +130,7 @@ class CloudSyncController extends Notifier<CloudSyncState> {
     final certificateRepo = ref.read(certificateRepositoryProvider);
     final todos = await certificateRepo.listarTodos();
 
-    CertificadoCapturado? certificado;
-    for (final c in todos) {
-      if (c.id == certificadoId) {
-        certificado = c;
-        break;
-      }
-    }
+    final certificado = todos.firstWhereOrNull((c) => c.id == certificadoId);
     if (certificado == null) return;
 
     state = state.copyWith(sincronizando: true, limparErro: true);

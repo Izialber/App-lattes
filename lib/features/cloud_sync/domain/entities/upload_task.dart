@@ -41,6 +41,7 @@ class UploadTask extends Equatable {
     int? bytesEnviados,
     String? idArquivoCloud,
     String? mensagemErro,
+    bool limparMensagemErro = false,
   }) {
     return UploadTask(
       id: id,
@@ -53,7 +54,7 @@ class UploadTask extends Equatable {
       uploadSessionUrl: uploadSessionUrl ?? this.uploadSessionUrl,
       bytesEnviados: bytesEnviados ?? this.bytesEnviados,
       idArquivoCloud: idArquivoCloud ?? this.idArquivoCloud,
-      mensagemErro: mensagemErro ?? this.mensagemErro,
+      mensagemErro: limparMensagemErro ? null : (mensagemErro ?? this.mensagemErro),
     );
   }
 

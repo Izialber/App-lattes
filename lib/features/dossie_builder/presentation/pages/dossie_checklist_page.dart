@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -144,25 +145,17 @@ class _DossieChecklistPageState extends ConsumerState<DossieChecklistPage> {
               child: _CertificadoVinculoTile(
                 certificado: certificado,
                 edital: edital,
-                sugestao: _primeiraOuNulo(
-                  estado.sugestoes.where((s) => s.certificadoId == certificado.id),
-                ),
-                decisaoAtual: _primeiraOuNulo(
-                  estado.dossie?.vinculosRevisados.where((v) => v.certificadoId == certificado.id) ??
-                      const [],
-                ),
+                sugestao: estado.sugestoes
+                    .where((s) => s.certificadoId == certificado.id)
+                    .firstOrNull,
+                decisaoAtual: estado.dossie?.vinculosRevisados
+                    .where((v) => v.certificadoId == certificado.id)
+                    .firstOrNull,
               ),
             ),
         const SizedBox(height: 80), // espaço para o FAB não cobrir o último item
       ],
     );
-  }
-
-  T? _primeiraOuNulo<T>(Iterable<T> iteravel) {
-    for (final item in iteravel) {
-      return item;
-    }
-    return null;
   }
 
   Future<void> _abrirDialogoNovoCriterio(BuildContext context, WidgetRef ref) async {

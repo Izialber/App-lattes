@@ -9,6 +9,13 @@ enum StatusCertificado {
   aprovado,
   enviandoParaCloud,
   sincronizado, // PDF já está no Drive/OneDrive do usuário
+
+  /// Falha na conversão de formato (ex.: HEIC não decodificável), ANTES de
+  /// chegar a chamar o LLM — status separado de [falhaExtracao] para que a
+  /// UI/logs consigam distinguir "arquivo ruim" de "falha do LLM/API"
+  /// (achado da 2ª revisão de código: `reextrair` já tratava as duas causas
+  /// de forma diferente ao reprocessar, mas o status persistido não).
+  falhaNormalizacao,
   falhaExtracao,
   falhaSincronizacao,
 }
@@ -58,6 +65,7 @@ class CertificadoCapturado extends Equatable {
     String? caminhoPdfConvertido,
     String? idArquivoCloud,
     String? mensagemErro,
+    bool limparMensagemErro = false,
   }) {
     return CertificadoCapturado(
       id: id,
@@ -71,7 +79,7 @@ class CertificadoCapturado extends Equatable {
       vinculoSugerido: vinculoSugerido ?? this.vinculoSugerido,
       caminhoPdfConvertido: caminhoPdfConvertido ?? this.caminhoPdfConvertido,
       idArquivoCloud: idArquivoCloud ?? this.idArquivoCloud,
-      mensagemErro: mensagemErro ?? this.mensagemErro,
+      mensagemErro: limparMensagemErro ? null : (mensagemErro ?? this.mensagemErro),
     );
   }
 

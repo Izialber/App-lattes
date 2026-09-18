@@ -46,7 +46,14 @@ class LlmExtractionDatasource {
   }
 
   Either<Failure, Map<String, dynamic>> _validarChavesObrigatorias(Map<String, dynamic> json) {
-    final chavesFaltando = _chavesObrigatorias.where((chave) => json[chave] == null).toList();
+    // Além de ausente, uma string vazia ("titulo": "") também conta como
+    // "não identificado" — um modelo pouco cooperativo pode devolver isso
+    // em vez de omitir a chave, e um título/instituição em branco não passa
+    // pela revisão humana com informação útil (achado da 2ª revisão).
+    final chavesFaltando = _chavesObrigatorias.where((chave) {
+      final valor = json[chave];
+      return valor == null || (valor is String && valor.trim().isEmpty);
+    }).toList();
     if (chavesFaltando.isNotEmpty) {
       return Left(
         LlmFailure(

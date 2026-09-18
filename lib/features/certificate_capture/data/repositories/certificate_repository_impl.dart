@@ -88,12 +88,18 @@ class CertificateRepositoryImpl implements CertificateRepository {
         debugLabel: 'converter-heic-$certificadoId',
       );
       await _localStore.salvarImagem(certificadoId, convertida.bytes);
-      final atualizado = certificado.copyWith(mimeType: convertida.mimeType);
+      final atualizado = certificado.copyWith(
+        mimeType: convertida.mimeType,
+        limparMensagemErro: true,
+      );
       await _localStore.salvar(atualizado);
       return Right(atualizado);
     } on HeicConversionUnsupportedException catch (e) {
+      // falhaNormalizacao, não falhaExtracao: o LLM nunca chegou a ser
+      // chamado — status separado para a UI distinguir "arquivo ruim" de
+      // "falha do LLM/API" (achado da 2ª revisão de código).
       await _localStore.salvar(
-        certificado.copyWith(status: StatusCertificado.falhaExtracao, mensagemErro: e.message),
+        certificado.copyWith(status: StatusCertificado.falhaNormalizacao, mensagemErro: e.message),
       );
       return Left(CaptureFailure(e.message));
     } catch (e) {
@@ -101,7 +107,7 @@ class CertificateRepositoryImpl implements CertificateRepository {
       // Hive continua "capturado") — achado da revisão de código.
       final mensagem = 'Falha ao converter HEIC: $e';
       await _localStore.salvar(
-        certificado.copyWith(status: StatusCertificado.falhaExtracao, mensagemErro: mensagem),
+        certificado.copyWith(status: StatusCertificado.falhaNormalizacao, mensagemErro: mensagem),
       );
       return Left(CaptureFailure(mensagem));
     }
@@ -160,6 +166,7 @@ class CertificateRepositoryImpl implements CertificateRepository {
           instituicaoExtraida: _comoTextoOpcional(json['instituicao']),
           cargaHorariaExtraidaHoras: _comoInteiroOpcional(json['cargaHorariaHoras']),
           dataExtraida: _parseDataOpcional(json['data']),
+          limparMensagemErro: true,
         );
         await _localStore.salvar(atualizado);
         return Right(atualizado);
@@ -188,7 +195,14 @@ class CertificateRepositoryImpl implements CertificateRepository {
     if (certificado == null) {
       return Left(LocalStorageFailure('Certificado $certificadoId não encontrado.'));
     }
-    await _localStore.salvar(certificado.copyWith(status: status, mensagemErro: mensagemErro));
+    // Toda transição de status que não traz uma mensagemErro nova é uma
+    // transição de progresso ou sucesso — não deve herdar o erro de uma
+    // falha anterior já superada (achado da 2ª revisão de código).
+    await _localStore.salvar(certificado.copyWith(
+      status: status,
+      mensagemErro: mensagemErro,
+      limparMensagemErro: mensagemErro == null,
+    ));
     return const Right(unit);
   }
 

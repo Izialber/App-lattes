@@ -46,6 +46,20 @@ void main() {
     resultado.match((falha) => expect(falha, isA<LlmFailure>()), (_) => fail('esperava Left'));
   });
 
+  test('LlmFailure quando "titulo" vem como string vazia (achado da 2ª revisão)', () async {
+    when(() => llmRepository.extrairJsonDeImagem(
+          imagemBytes: any(named: 'imagemBytes'),
+          mimeType: any(named: 'mimeType'),
+          promptExtracao: any(named: 'promptExtracao'),
+        )).thenAnswer((_) async => const Right({'titulo': '', 'instituicao': 'UFX'}));
+
+    final resultado =
+        await datasource.extrair(imagemBytes: const [1, 2, 3], mimeType: 'image/jpeg');
+
+    expect(resultado.isLeft(), isTrue);
+    resultado.match((falha) => expect(falha, isA<LlmFailure>()), (_) => fail('esperava Left'));
+  });
+
   test('propaga a falha do repositório sem alteração', () async {
     when(() => llmRepository.extrairJsonDeImagem(
           imagemBytes: any(named: 'imagemBytes'),

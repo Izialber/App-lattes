@@ -35,6 +35,15 @@ class Dossie extends Equatable {
   final String? caminhoPdfFinal;
   final String? mensagemDegradacao;
 
+  /// Nota informativa sobre um dossiê compilado com SUCESSO (ex.: contagem
+  /// de certificados PDF-de-origem excluídos da mesclagem automática) — não
+  /// é degradação (nenhum problema de memória ocorreu). Campo separado de
+  /// [mensagemDegradacao] de propósito: um consumidor futuro que checar
+  /// `mensagemDegradacao != null` para detectar degradação real de memória
+  /// não pode ter falso positivo vindo de uma compilação comum que só
+  /// excluiu alguns PDFs (achado da 2ª revisão de código).
+  final String? notaCompilacao;
+
   /// Progresso da compilação em partes (ambos 0 quando não se aplica).
   /// `loteAtual` é 1-based para exibição direta na UI ("lote 2 de 5").
   final int loteAtual;
@@ -47,6 +56,7 @@ class Dossie extends Equatable {
     this.vinculosRevisados = const [],
     this.caminhoPdfFinal,
     this.mensagemDegradacao,
+    this.notaCompilacao,
     this.loteAtual = 0,
     this.totalDeLotes = 0,
   });
@@ -57,6 +67,8 @@ class Dossie extends Equatable {
     String? caminhoPdfFinal,
     String? mensagemDegradacao,
     bool limparMensagemDegradacao = false,
+    String? notaCompilacao,
+    bool limparNotaCompilacao = false,
     int? loteAtual,
     int? totalDeLotes,
   }) {
@@ -69,6 +81,7 @@ class Dossie extends Equatable {
       mensagemDegradacao: limparMensagemDegradacao
           ? null
           : (mensagemDegradacao ?? this.mensagemDegradacao),
+      notaCompilacao: limparNotaCompilacao ? null : (notaCompilacao ?? this.notaCompilacao),
       loteAtual: loteAtual ?? this.loteAtual,
       totalDeLotes: totalDeLotes ?? this.totalDeLotes,
     );
@@ -82,6 +95,7 @@ class Dossie extends Equatable {
         vinculosRevisados,
         caminhoPdfFinal,
         mensagemDegradacao,
+        notaCompilacao,
         loteAtual,
         totalDeLotes,
       ];

@@ -343,6 +343,7 @@ void main() {
       resultado.match((_) => fail('esperava Right'), (d) {
         expect(d.status, StatusDossie.compilado);
         expect(d.caminhoPdfFinal, 'dossie1');
+        expect(d.notaCompilacao, isNull); // nenhum PDF excluído, nada a avisar
       });
       verify(() => localStore.salvarPdfFinal('dossie1', [1, 2, 3, 4])).called(1);
     });
@@ -386,6 +387,12 @@ void main() {
           )).captured;
       final imagens = chamada[0] as List<List<int>>;
       expect(imagens, hasLength(1)); // só o certificado de imagem (c1), não o de PDF (c2)
+      resultado.match((_) => fail('esperava Right'), (d) {
+        // achado da 2ª revisão de código: o resultado precisa avisar quantos
+        // certificados ficaram fora, não só o checklist antes de compilar.
+        expect(d.notaCompilacao, contains('1 certificado'));
+        expect(d.mensagemDegradacao, isNull); // não é degradação por memória
+      });
     });
 
     test('DossieFailure quando todos os aprovados são PDF de origem', () async {

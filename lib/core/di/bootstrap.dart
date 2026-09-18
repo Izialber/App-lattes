@@ -10,11 +10,16 @@ import '../../features/dossie_builder/data/local/dossie_local_store.dart';
 /// de "retomável após recarga de aba" (ver `main.dart`).
 Future<void> bootstrap() async {
   await Hive.initFlutter();
-  await Hive.openBox<Map>(CertificateLocalStore.metadataBoxName);
-  await Hive.openBox<Uint8List>(CertificateLocalStore.imagesBoxName);
-  await Hive.openBox<Map>(UploadQueueLocalStore.metadataBoxName);
-  await Hive.openBox<Uint8List>(UploadQueueLocalStore.pdfsBoxName);
-  await Hive.openBox<Map>(DossieLocalStore.dossieBoxName);
-  await Hive.openBox<Map>(DossieLocalStore.editalBoxName);
-  await Hive.openBox<Uint8List>(DossieLocalStore.pdfFinalBoxName);
+  // As 7 boxes são independentes entre si — abrir em paralelo em vez de
+  // sequencialmente evita somar 7 round-trips de IndexedDB no cold start
+  // (achado da 2ª revisão de código).
+  await Future.wait([
+    Hive.openBox<Map>(CertificateLocalStore.metadataBoxName),
+    Hive.openBox<Uint8List>(CertificateLocalStore.imagesBoxName),
+    Hive.openBox<Map>(UploadQueueLocalStore.metadataBoxName),
+    Hive.openBox<Uint8List>(UploadQueueLocalStore.pdfsBoxName),
+    Hive.openBox<Map>(DossieLocalStore.dossieBoxName),
+    Hive.openBox<Map>(DossieLocalStore.editalBoxName),
+    Hive.openBox<Uint8List>(DossieLocalStore.pdfFinalBoxName),
+  ]);
 }

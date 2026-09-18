@@ -144,12 +144,18 @@ void main() {
         (falha) => expect(falha, isA<CaptureFailure>()),
         (_) => fail('esperava Left'),
       );
+      final ultimoSalvo =
+          verify(() => localStore.salvar(captureAny())).captured.last as CertificadoCapturado;
+      expect(ultimoSalvo.status, StatusCertificado.falhaNormalizacao);
     });
 
-    test('persiste falhaExtracao mesmo quando o erro não é HeicConversionUnsupportedException',
-        () async {
+    test(
+        'persiste falhaNormalizacao (não falhaExtracao) mesmo quando o erro não é '
+        'HeicConversionUnsupportedException', () async {
       // Achado da revisão de código: sem persistir aqui, um reload perdia
-      // o estado de falha (a versão em Hive continuava "capturado").
+      // o estado de falha (a versão em Hive continuava "capturado"). O
+      // status é falhaNormalizacao, distinto de falhaExtracao, porque o LLM
+      // nunca chegou a ser chamado (achado da 2ª revisão de código).
       final bytesHeic = Uint8List.fromList([1, 2, 3]);
       when(() => localStore.buscar('c1')).thenReturn(certificadoBase());
       when(() => localStore.lerImagem('c1')).thenReturn(bytesHeic);
@@ -162,7 +168,7 @@ void main() {
       expect(resultado.isLeft(), isTrue);
       final chamadasSalvar = verify(() => localStore.salvar(captureAny())).captured;
       final ultimoSalvo = chamadasSalvar.last as CertificadoCapturado;
-      expect(ultimoSalvo.status, StatusCertificado.falhaExtracao);
+      expect(ultimoSalvo.status, StatusCertificado.falhaNormalizacao);
       expect(ultimoSalvo.mensagemErro, contains('erro inesperado de verdade'));
     });
 
@@ -247,6 +253,24 @@ void main() {
         expect(c.tituloExtraido, '123');
         expect(c.cargaHorariaExtraidaHoras, 40);
       });
+    });
+
+    test('sucesso limpa uma mensagemErro de uma tentativa anterior (achado da 2ª revisão)',
+        () async {
+      final comErroAnterior = certificadoBase().copyWith(
+        status: StatusCertificado.falhaExtracao,
+        mensagemErro: 'chave de API inválida',
+      );
+      when(() => localStore.buscar('c1')).thenReturn(comErroAnterior);
+      when(() => localStore.lerImagem('c1')).thenReturn(Uint8List.fromList(List.filled(20, 1)));
+      when(() => llmDatasource.extrair(
+            imagemBytes: any(named: 'imagemBytes'),
+            mimeType: any(named: 'mimeType'),
+          )).thenAnswer((_) async => const Right({'titulo': 'Curso X', 'instituicao': 'UFX'}));
+
+      final resultado = await repository.extrairDados('c1');
+
+      resultado.match((_) => fail('esperava Right'), (c) => expect(c.mensagemErro, isNull));
     });
 
     test('PDF pula a compressão de imagem e mantém o mimeType application/pdf', () async {
@@ -334,6 +358,20 @@ void main() {
         (chamadasSalvar.single as CertificadoCapturado).mensagemErro,
         'falha ao enviar para o Drive',
       );
+    });
+
+    test('limpa mensagemErro anterior quando a nova transição não traz uma (achado da 2ª revisão)',
+        () async {
+      final comErroAnterior = certificadoBase().copyWith(
+        status: StatusCertificado.falhaSincronizacao,
+        mensagemErro: 'falha ao enviar para o Drive',
+      );
+      when(() => localStore.buscar('c1')).thenReturn(comErroAnterior);
+
+      await repository.atualizarStatus('c1', StatusCertificado.sincronizado);
+
+      final chamadasSalvar = verify(() => localStore.salvar(captureAny())).captured;
+      expect((chamadasSalvar.single as CertificadoCapturado).mensagemErro, isNull);
     });
   });
 

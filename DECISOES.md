@@ -551,9 +551,69 @@ caso comum (0 certificados excluídos → mensagem deve ficar `null`, não herda
 degradação de uma tentativa anterior já corrigida). Adicionado `limparMensagemDegradacao` (bool,
 default `false`) ao `copyWith`, mesmo padrão de antes.
 
-**Segunda rodada de `/code-review high` pedida pelo usuário ("revise mais uma vez tudo") não
-completou** — o coordenador e a maioria dos sub-agentes de busca falharam com HTTP 429 (limite de
-sessão da API da Claude, reset 15h America/São_Paulo). Nenhum achado novo veio dessa rodada além
-do que a primeira já tinha encontrado. Não re-tentada ainda nesta sessão; os 9 achados da primeira
-rodada continuam sendo a lista de referência (6 corrigidos, achado #7 corrigido nesta entrada,
-#8/#9 seguem deliberadamente adiados por severidade menor).
+**Primeira tentativa da segunda rodada de `/code-review high` (pedida pelo usuário, "revise mais
+uma vez tudo") não completou** — o coordenador e a maioria dos sub-agentes de busca falharam com
+HTTP 429 (limite de sessão da API da Claude, reset 15h America/São_Paulo). Re-tentada depois das
+15h, ver entrada seguinte para os achados reais dessa rodada.
+
+## 2ª revisão de código (retry após rate limit) — 10 achados, 9 corrigidos (2026-09-18)
+
+Rodei `/code-review high 839a664..HEAD` de novo depois das 15h (quando o rate limit da tentativa
+anterior deveria ter resetado) — desta vez completou, 8 ângulos de busca + verificação em 3
+lotes. Um candidato (cache do id da pasta do Drive ficar obsoleto ao trocar de conta) foi
+REFUTADO pelo próprio revisor: o fluxo OAuth só faz redirect de página inteira, que destrói o
+`ProviderContainer` — trocar de conta sempre recria o cache do zero, não há como ficar obsoleto.
+
+Achados corrigidos (mais sérios primeiro):
+
+1. **`CertificadoCapturado.copyWith` nunca conseguia limpar `mensagemErro`** (mesma limitação de
+   `Dossie.copyWith`, corrigida na entrada anterior, só que eu não tinha percebido que
+   `CertificadoCapturado` tinha o mesmo problema desde o início). Um certificado que falhava e
+   depois tinha sucesso numa nova tentativa continuava exibindo a mensagem de erro antiga para
+   sempre. Adicionado `limparMensagemErro` ao `copyWith`; `extrairDados` (sucesso),
+   `normalizarFormatoImagem` (sucesso) e `atualizarStatus` (quando chamado sem `mensagemErro`,
+   que é toda transição de progresso/sucesso) agora limpam o campo.
+2. **`_marcarFalha` (certificate_capture_providers.dart) grudava toda falha em
+   `falhaExtracao`**, mesmo a de normalização HEIC — a `reextrair` já tratava as duas causas de
+   forma diferente ao reprocessar (rodada anterior), mas o status em si não distinguia.
+   Adicionado `StatusCertificado.falhaNormalizacao`, persistido pelo repositório e agora também
+   refletido corretamente no estado em memória (`_marcarFalha` passou a receber o status certo
+   em vez de assumir `falhaExtracao`). UI (`certificate_capture_page.dart`) ganhou os 3 casos
+   novos nos switches exaustivos — ícone/botão de retry idênticos aos de `falhaExtracao`, rótulo
+   próprio ("Falha ao converter o arquivo").
+3. **Retry de chunk sem confirmação de progresso (308) não tinha backoff** — reenviava o mesmo
+   chunk (potencialmente MBs) 5 vezes seguidas sem espera; se a causa fosse rate limiting
+   transitório, isso só pioraria. Adicionado backoff exponencial simples (500ms, 1s, 2s, 4s)
+   entre tentativas.
+4. **Validação de campos obrigatórios do LLM só checava `null`**, não string vazia — um
+   `{"titulo": ""}` passava a revisão humana como se tivesse dado certo. Agora trata string vazia
+   (ou só espaços) igual a ausente.
+5. **`DossieCompilePage` recompilava do zero toda vez que a tela abria**, mesmo com o dossiê já
+   compilado com sucesso (voltar e reabrir, ou recarregar a URL). Adicionada checagem de status
+   antes de disparar `compilar` de novo.
+6. **Nota de PDFs excluídos (achado #7 da 1ª rodada, corrigida na entrada anterior) reaproveitava
+   `mensagemDegradacao`** — um consumidor futuro que checasse esse campo para detectar
+   degradação real de memória teria falso positivo em qualquer compilação comum que só excluiu
+   PDFs. Campo próprio criado: `Dossie.notaCompilacao`.
+7. **`UploadTask.copyWith` tinha a mesma limitação do achado #1**, e uma retomada bem-sucedida da
+   fila de upload não limpava `mensagemErro` de uma falha temporária anterior da mesma tarefa.
+   Mesmo fix (`limparMensagemErro`).
+8. **Três implementações inconsistentes de "primeiro item ou null"** no diff — um loop manual
+   (`cloud_sync_providers.dart`), um helper próprio `_primeiraOuNulo` (`dossie_checklist_page.
+   dart`), e um `firstWhere` sem `orElse` (`certificate_capture_providers.dart`, que lançaria
+   `StateError` se chamado antes do certificado existir na lista). Unificado nos 3 lugares usando
+   `firstWhereOrNull`/`firstOrNull` de `package:collection` (promovida de dependência transitiva
+   para direta no `pubspec.yaml`).
+9. **`bootstrap()` abria as 7 Hive boxes sequencialmente** apesar de serem independentes — trocado
+   por `Future.wait`, evitando somar 7 round-trips de IndexedDB no cold start.
+
+Achado não corrigido (severidade menor, escolha deliberada):
+10. `certificate_local_store.dart`, `dossie_local_store.dart` e `upload_queue_local_store.dart`
+    reimplementam cada um, de forma independente, o mesmo padrão "Hive box de metadados + box de
+    bytes, salvar/buscar/listar/remover". Extrair uma classe base resolveria a duplicação, mas é
+    uma refatoração estrutural nas 3 camadas de persistência sem SDK Flutter disponível para
+    validar que nada quebra — risco maior que o benefício nesta sessão. Fica registrado para uma
+    sessão futura com o SDK disponível.
+
+4 testes novos cobrindo os achados corrigidos (validação de string vazia, limpeza de
+`mensagemErro` em sucesso de extração/atualização de status/upload). 119 testes no total.

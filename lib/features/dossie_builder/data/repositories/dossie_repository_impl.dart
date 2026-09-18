@@ -282,24 +282,25 @@ class DossieRepositoryImpl implements DossieRepository {
       );
       await _localStore.salvarPdfFinal(dossie.id, pdfFinal);
 
-      // Reaproveita o campo de degradação como nota informativa mesmo em
-      // sucesso — achado da revisão de código: antes da compilação, o
-      // checklist já avisa quais certificados são PDF de origem (não
-      // entram na mesclagem automática), mas o RESULTADO da compilação em
-      // si não comunicava isso — um usuário que não reparou no aviso
-      // anterior via só "compilado com sucesso" sem saber que faltam
-      // certificados no PDF final. `limparMensagemDegradacao` evita que
-      // uma mensagem de uma tentativa anterior (ex.: degradação por
-      // memória insuficiente, depois corrigida removendo certificados)
-      // fique presa aqui para sempre.
+      // Achado da revisão de código: antes da compilação, o checklist já
+      // avisa quais certificados são PDF de origem (não entram na
+      // mesclagem automática), mas o RESULTADO da compilação em si não
+      // comunicava isso — um usuário que não reparou no aviso anterior via
+      // só "compilado com sucesso" sem saber que faltam certificados no PDF
+      // final. Usa `notaCompilacao`, não `mensagemDegradacao` — este é um
+      // sucesso, não uma degradação por memória (2ª revisão de código:
+      // reaproveitar o campo de degradação criaria falso positivo para
+      // qualquer consumidor futuro que checasse "degradação == houve
+      // problema de memória"). `limparNotaCompilacao` evita que uma nota de
+      // uma tentativa anterior fique presa aqui para sempre.
       final atualizado = dossie.copyWith(
         status: StatusDossie.compilado,
         caminhoPdfFinal: dossie.id,
-        mensagemDegradacao: totalPdfDeOrigemExcluidos > 0
+        notaCompilacao: totalPdfDeOrigemExcluidos > 0
             ? '$totalPdfDeOrigemExcluidos certificado(s) aprovado(s) são PDF de origem e não '
                 'entraram neste PDF — mesclagem automática de PDF ainda não suportada.'
             : null,
-        limparMensagemDegradacao: totalPdfDeOrigemExcluidos == 0,
+        limparNotaCompilacao: totalPdfDeOrigemExcluidos == 0,
       );
       await _localStore.salvarDossie(atualizado);
       return Right(atualizado);

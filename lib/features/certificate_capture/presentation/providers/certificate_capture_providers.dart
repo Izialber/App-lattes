@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/injection.dart';
@@ -211,8 +212,10 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
     if (resultadoNormalizacao.isLeft()) {
       resultadoNormalizacao.match(
         (falha) {
-          final atual = state.certificados.firstWhere((c) => c.id == certificadoId);
-          _marcarFalha(atual, falha.message);
+          final atual = state.certificados.firstWhereOrNull((c) => c.id == certificadoId);
+          if (atual != null) {
+            _marcarFalha(atual, StatusCertificado.falhaNormalizacao, falha.message);
+          }
         },
         (_) {},
       );
@@ -222,17 +225,23 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
     final resultado = await ref.read(extrairDadosCertificadoLlmProvider).call(certificadoId);
     resultado.match(
       (falha) {
-        final atual = state.certificados.firstWhere((c) => c.id == certificadoId);
-        _marcarFalha(atual, falha.message);
+        final atual = state.certificados.firstWhereOrNull((c) => c.id == certificadoId);
+        if (atual != null) {
+          _marcarFalha(atual, StatusCertificado.falhaExtracao, falha.message);
+        }
       },
       (atualizado) => _atualizarNaLista(atualizado),
     );
   }
 
-  void _marcarFalha(CertificadoCapturado certificado, String mensagem) {
-    _atualizarNaLista(
-      certificado.copyWith(status: StatusCertificado.falhaExtracao, mensagemErro: mensagem),
-    );
+  /// Só reflete no estado em memória o status já persistido pelo
+  /// repositório (`normalizarFormatoImagem`/`extrairDados` já gravaram no
+  /// Hive antes de devolver `Left`) — precisa do status certo aqui também,
+  /// senão a UI mostra "falha na extração" para uma falha de normalização
+  /// até a próxima reload (achado da 2ª revisão de código, sobre
+  /// `falhaNormalizacao` vs `falhaExtracao` ficarem indistinguíveis).
+  void _marcarFalha(CertificadoCapturado certificado, StatusCertificado status, String mensagem) {
+    _atualizarNaLista(certificado.copyWith(status: status, mensagemErro: mensagem));
   }
 
   void _atualizarNaLista(CertificadoCapturado atualizado) {

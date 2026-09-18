@@ -38,6 +38,7 @@ void main() {
     CloudProvider provider = CloudProvider.googleDrive,
     String? uploadSessionUrl,
     int bytesEnviados = 0,
+    String? mensagemErro,
   }) =>
       UploadTask(
         id: id,
@@ -48,6 +49,7 @@ void main() {
         status: UploadStatus.pendente,
         uploadSessionUrl: uploadSessionUrl,
         bytesEnviados: bytesEnviados,
+        mensagemErro: mensagemErro,
       );
 
   setUp(() {
@@ -118,6 +120,29 @@ void main() {
         expect(t.idArquivoCloud, 'arquivo123');
         expect(t.bytesEnviados, 3);
       });
+    });
+
+    test('sucesso limpa mensagemErro de uma tentativa anterior (achado da 2ª revisão)', () async {
+      final pdfBytes = Uint8List.fromList([1, 2, 3]);
+      when(() => localStore.lerPdf('task1')).thenReturn(pdfBytes);
+      when(() => googleDrive.criarPastaSeNaoExistir(any())).thenAnswer((_) async => 'pasta123');
+      when(() => googleDrive.iniciarSessaoUploadResumivel(
+            pastaId: any(named: 'pastaId'),
+            nomeArquivo: any(named: 'nomeArquivo'),
+            tamanhoBytes: any(named: 'tamanhoBytes'),
+          )).thenAnswer((_) async => 'https://sessao-de-upload');
+      when(() => googleDrive.enviarChunk(
+            sessionUrl: any(named: 'sessionUrl'),
+            bytes: any(named: 'bytes'),
+            offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
+          )).thenAnswer((_) async => (bytesConfirmados: 3, idArquivo: 'arquivo123'));
+
+      final resultado = await repository.enviarArquivo(
+        taskBase(mensagemErro: 'falha temporária anterior'),
+      );
+
+      resultado.match((_) => fail('esperava Right'), (t) => expect(t.mensagemErro, isNull));
     });
 
     test('retoma sessão já aberta em vez de iniciar uma nova', () async {

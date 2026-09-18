@@ -124,6 +124,13 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
             );
             return const Left(CloudStorageFailure(mensagem));
           }
+          // Sem espera aqui, um 308-sem-progresso causado por rate limiting
+          // transitório reenviaria o chunk (potencialmente MBs) de volta a
+          // toda velocidade 5 vezes seguidas, piorando o rate limit em vez
+          // de ceder — achado da 2ª revisão de código. Backoff exponencial
+          // simples (a fila em si já tem backoff real via `retry`, mas este
+          // loop interno de chunk não passava por ele).
+          await Future.delayed(Duration(milliseconds: 500 * (1 << (tentativasSemProgresso - 1))));
           continue;
         }
         tentativasSemProgresso = 0;
@@ -136,7 +143,13 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
         await _localStore.salvar(tarefaAtual);
       }
 
-      final concluida = tarefaAtual.copyWith(status: UploadStatus.concluido);
+      // limparMensagemErro: uma retomada bem-sucedida não deve arrastar a
+      // mensagem de uma falha temporária anterior da mesma tarefa (mesmo
+      // padrão do achado em CertificadoCapturado, 2ª revisão de código).
+      final concluida = tarefaAtual.copyWith(
+        status: UploadStatus.concluido,
+        limparMensagemErro: true,
+      );
       await _localStore.salvar(concluida);
       return Right(concluida);
     } on DioException catch (e) {

@@ -36,6 +36,17 @@ class _DossieCompilePageState extends ConsumerState<DossieCompilePage> {
     if (estadoAtual.dossie?.id != widget.dossieId) {
       await notifier.carregarChecklist(widget.dossieId);
     }
+
+    // Sem essa checagem, voltar para o checklist e reabrir esta tela (ou só
+    // recarregar a URL /dossie/:id/compilar) refazia a mesclagem inteira do
+    // zero mesmo com o dossiê já compilado com sucesso — achado da 2ª
+    // revisão de código. `falhaCompilacao`/`degradadoAguardandoDesktop`
+    // continuam recompilando ao entrar na tela (é o comportamento que o
+    // botão "Tentar novamente" já espera).
+    final jaCompilado = ref.read(dossieBuilderControllerProvider).dossie?.status ==
+        StatusDossie.compilado;
+    if (jaCompilado) return;
+
     await notifier.compilar(widget.dossieId);
   }
 
@@ -77,7 +88,7 @@ class _DossieCompilePageState extends ConsumerState<DossieCompilePage> {
           icone: Icons.check_circle,
           cor: Theme.of(context).colorScheme.primary,
           titulo: 'Dossiê compilado com sucesso!',
-          subtitulo: dossie.mensagemDegradacao,
+          subtitulo: dossie.notaCompilacao,
           acao: FilledButton.icon(
             onPressed: () {
               final bytes = ref.read(dossieBuilderControllerProvider.notifier).lerPdfFinal(dossie.id);

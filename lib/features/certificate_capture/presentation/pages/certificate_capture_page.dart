@@ -210,6 +210,7 @@ class _CertificadoCard extends ConsumerWidget {
 
   Widget? _botaoTentarNovamente(WidgetRef ref) {
     switch (certificado.status) {
+      case StatusCertificado.falhaNormalizacao:
       case StatusCertificado.falhaExtracao:
         return IconButton(
           tooltip: 'Tentar extrair de novo',
@@ -231,7 +232,8 @@ class _CertificadoCard extends ConsumerWidget {
   }
 
   String _subtitulo(CertificadoCapturado c) {
-    if (c.status == StatusCertificado.falhaExtracao ||
+    if (c.status == StatusCertificado.falhaNormalizacao ||
+        c.status == StatusCertificado.falhaExtracao ||
         c.status == StatusCertificado.falhaSincronizacao) {
       return c.mensagemErro ?? 'Falha ao processar este certificado.';
     }
@@ -261,6 +263,8 @@ class _CertificadoCard extends ConsumerWidget {
         return 'Enviando…';
       case StatusCertificado.sincronizado:
         return 'Sincronizado';
+      case StatusCertificado.falhaNormalizacao:
+        return 'Falha ao converter o arquivo';
       case StatusCertificado.falhaExtracao:
         return 'Falha na extração';
       case StatusCertificado.falhaSincronizacao:
@@ -284,6 +288,7 @@ class _CertificadoCard extends ConsumerWidget {
         return Icon(Icons.check_circle, color: Theme.of(context).colorScheme.primary);
       case StatusCertificado.enviandoParaCloud:
         return const Icon(Icons.cloud_upload_outlined);
+      case StatusCertificado.falhaNormalizacao:
       case StatusCertificado.falhaExtracao:
       case StatusCertificado.falhaSincronizacao:
         return Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error);
