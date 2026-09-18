@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/routing/app_router.dart';
+import '../../../cloud_sync/presentation/providers/cloud_sync_providers.dart';
 import '../../domain/entities/certificado_capturado.dart';
 import '../providers/certificate_capture_providers.dart';
 
@@ -24,11 +25,29 @@ class CertificateCapturePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(certificateCaptureControllerProvider);
+    final estadoSync = ref.watch(cloudSyncControllerProvider);
+    final temCertificadosProntos = estado.certificados.any(
+      (c) =>
+          c.status == StatusCertificado.pendenteRevisao || c.status == StatusCertificado.aprovado,
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Capturar certificados'),
         actions: [
+          IconButton(
+            tooltip: 'Sincronizar com o Google Drive',
+            icon: estadoSync.sincronizando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_upload_outlined),
+            onPressed: (!temCertificadosProntos || estadoSync.sincronizando)
+                ? null
+                : () => ref.read(cloudSyncControllerProvider.notifier).sincronizarTodos(),
+          ),
           IconButton(
             tooltip: 'Configurar provedor de LLM',
             icon: const Icon(Icons.settings_outlined),
@@ -79,6 +98,8 @@ class CertificateCapturePage extends ConsumerWidget {
   }
 
   Widget _corpo(BuildContext context, WidgetRef ref, CertificateCaptureState estado) {
+    final estadoSync = ref.watch(cloudSyncControllerProvider);
+
     return Column(
       children: [
         if (estado.erro != null)
@@ -89,6 +110,17 @@ class CertificateCapturePage extends ConsumerWidget {
               TextButton(
                 onPressed: () =>
                     ref.read(certificateCaptureControllerProvider.notifier).limparErro(),
+                child: const Text('Fechar'),
+              ),
+            ],
+          ),
+        if (estadoSync.erro != null)
+          MaterialBanner(
+            content: Text(estadoSync.erro!),
+            leading: const Icon(Icons.cloud_off_outlined),
+            actions: [
+              TextButton(
+                onPressed: () => ref.read(cloudSyncControllerProvider.notifier).limparErro(),
                 child: const Text('Fechar'),
               ),
             ],
@@ -155,21 +187,36 @@ class _CertificadoCard extends ConsumerWidget {
         leading: _iconePorStatus(context, certificado.status),
         title: Text(certificado.tituloExtraido ?? 'Processando…'),
         subtitle: Text(_subtitulo(certificado)),
-        trailing: certificado.status == StatusCertificado.falhaExtracao
-            ? IconButton(
-                tooltip: 'Tentar novamente',
-                icon: const Icon(Icons.refresh),
-                onPressed: () => ref
-                    .read(certificateCaptureControllerProvider.notifier)
-                    .reextrair(certificado.id),
-              )
-            : null,
+        trailing: _botaoTentarNovamente(ref),
       ),
     );
   }
 
+  Widget? _botaoTentarNovamente(WidgetRef ref) {
+    switch (certificado.status) {
+      case StatusCertificado.falhaExtracao:
+        return IconButton(
+          tooltip: 'Tentar extrair de novo',
+          icon: const Icon(Icons.refresh),
+          onPressed: () => ref
+              .read(certificateCaptureControllerProvider.notifier)
+              .reextrair(certificado.id),
+        );
+      case StatusCertificado.falhaSincronizacao:
+        return IconButton(
+          tooltip: 'Tentar enviar de novo',
+          icon: const Icon(Icons.cloud_sync_outlined),
+          onPressed: () =>
+              ref.read(cloudSyncControllerProvider.notifier).retentarUm(certificado.id),
+        );
+      default:
+        return null;
+    }
+  }
+
   String _subtitulo(CertificadoCapturado c) {
-    if (c.status == StatusCertificado.falhaExtracao) {
+    if (c.status == StatusCertificado.falhaExtracao ||
+        c.status == StatusCertificado.falhaSincronizacao) {
       return c.mensagemErro ?? 'Falha ao processar este certificado.';
     }
     if (c.status == StatusCertificado.capturado || c.status == StatusCertificado.extraindoDados) {

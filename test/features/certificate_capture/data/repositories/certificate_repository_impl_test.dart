@@ -270,6 +270,22 @@ void main() {
 
       expect(resultado.isLeft(), isTrue);
     });
+
+    test('grava mensagemErro quando informado', () async {
+      when(() => localStore.buscar('c1')).thenReturn(certificadoBase());
+
+      await repository.atualizarStatus(
+        'c1',
+        StatusCertificado.falhaSincronizacao,
+        mensagemErro: 'falha ao enviar para o Drive',
+      );
+
+      final chamadasSalvar = verify(() => localStore.salvar(captureAny())).captured;
+      expect(
+        (chamadasSalvar.single as CertificadoCapturado).mensagemErro,
+        'falha ao enviar para o Drive',
+      );
+    });
   });
 
   group('listarTodos', () {

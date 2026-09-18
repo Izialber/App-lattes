@@ -17,6 +17,7 @@ class UploadTask extends Equatable {
   final int tentativas;
   final String? uploadSessionUrl; // sessão de upload resumível da API
   final int bytesEnviados;
+  final String? idArquivoCloud; // preenchido só quando status == concluido
   final String? mensagemErro;
 
   const UploadTask({
@@ -29,6 +30,7 @@ class UploadTask extends Equatable {
     this.tentativas = 0,
     this.uploadSessionUrl,
     this.bytesEnviados = 0,
+    this.idArquivoCloud,
     this.mensagemErro,
   });
 
@@ -37,6 +39,7 @@ class UploadTask extends Equatable {
     int? tentativas,
     String? uploadSessionUrl,
     int? bytesEnviados,
+    String? idArquivoCloud,
     String? mensagemErro,
   }) {
     return UploadTask(
@@ -49,6 +52,7 @@ class UploadTask extends Equatable {
       tentativas: tentativas ?? this.tentativas,
       uploadSessionUrl: uploadSessionUrl ?? this.uploadSessionUrl,
       bytesEnviados: bytesEnviados ?? this.bytesEnviados,
+      idArquivoCloud: idArquivoCloud ?? this.idArquivoCloud,
       mensagemErro: mensagemErro ?? this.mensagemErro,
     );
   }
@@ -64,6 +68,7 @@ class UploadTask extends Equatable {
         tentativas,
         uploadSessionUrl,
         bytesEnviados,
+        idArquivoCloud,
         mensagemErro,
       ];
 }

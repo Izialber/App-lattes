@@ -161,13 +161,14 @@ class CertificateRepositoryImpl implements CertificateRepository {
   @override
   Future<Either<Failure, Unit>> atualizarStatus(
     String certificadoId,
-    StatusCertificado status,
-  ) async {
+    StatusCertificado status, {
+    String? mensagemErro,
+  }) async {
     final certificado = _localStore.buscar(certificadoId);
     if (certificado == null) {
       return Left(LocalStorageFailure('Certificado $certificadoId não encontrado.'));
     }
-    await _localStore.salvar(certificado.copyWith(status: status));
+    await _localStore.salvar(certificado.copyWith(status: status, mensagemErro: mensagemErro));
     return const Right(unit);
   }
 

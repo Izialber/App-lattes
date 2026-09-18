@@ -334,3 +334,55 @@ datasource). **OpenAI não** — o endpoint de chat completions usado aqui (`ima
 imagem; PDF exigiria a API de Files/Assistants, fora do escopo. `OpenAiLlmDatasource.gerarJson`
 recusa explicitamente `mimeType: application/pdf` com uma mensagem pedindo para trocar de
 provedor, em vez de deixar a chamada falhar com um erro genérico da API.
+
+## Módulo 3 — Sincronização com o Drive (2026-09-18)
+
+Pedido do usuário para trabalhar de forma autônoma enquanto o login OAuth do Google/Drive
+continua bloqueado (exige as credenciais dele ao vivo, ver pendência de 2026-09-16). Escolhido
+como prioridade entre os itens pendentes. Implementação completa da camada de dados que antes
+era só stub: `GoogleDriveDatasource` (chamadas REST reais à Drive API v3), `PdfBuilderDatasource`
+(converte a imagem do certificado numa página de PDF via `package:pdf`; PDF de origem passa
+direto), `UploadQueueLocalStore` (Hive, mesmo padrão de `CertificateLocalStore`, boxes separadas
+para metadados e bytes do PDF) e `CloudStorageRepositoryImpl` ligando tudo.
+
+Decisões de implementação:
+1. **Autenticação via interceptor do Dio**, não parâmetro em cada método — mantém o contrato de
+   `GoogleDriveDatasource` já documentado antes desta implementação (`criarPastaSeNaoExistir`
+   etc. nunca receberam token como argumento). O interceptor chama
+   `AuthRepository.obterTokenValido` (renova sozinho se necessário) antes de cada request; se não
+   houver sessão válida, rejeita com `DioException(type: cancel)`, que
+   `CloudStorageRepositoryImpl` traduz para `CloudStorageFailure(isTransient: false)` — sem
+   sessão válida, tentar de novo automaticamente nunca resolveria sozinho.
+2. **`UploadTask` e `CertificadoCapturado` ganharam campos que a implementação real precisou e
+   os stubs não prometiam**: `UploadTask.idArquivoCloud` (o id do arquivo no Drive, só disponível
+   depois que o upload termina — `enviarChunk` mudou de retornar só `int` para um record
+   `({int bytesConfirmados, String? idArquivo})`) e `CertificateRepository.atualizarStatus` ganhou
+   um parâmetro opcional `mensagemErro` (antes só dava para mudar o status, não registrar por que
+   uma sincronização falhou).
+3. **Upload resumível implementado como um único PUT do arquivo completo**, não em múltiplos
+   chunks de verdade — PDFs de certificado (uma página, imagem comprimida) são pequenos o
+   bastante para isso na prática. A assinatura de `enviarChunk` (`offset`, retorno com bytes
+   confirmados) já segue o protocolo completo do Google (inclusive trata 308 Resume Incomplete
+   como resposta válida, não erro), então dá para implementar chunking de verdade depois sem
+   mudar a interface.
+4. **`StatusCertificado.pendenteRevisao` E `aprovado` são tratados como "pronto para
+   sincronizar"** pelo `CloudSyncController.sincronizarTodos` — não existe hoje uma tela de
+   revisão humana separada (era a intenção original do comentário no enum, para o módulo 4, que
+   continua stub), então exigir uma aprovação manual antes de sincronizar bloquearia o módulo 3
+   inteiro por uma UI que não existe ainda. Pode ser revisto quando o módulo 4 ganhar uma tela de
+   revisão de verdade.
+5. **OneDrive continua fora de escopo** (decisão já registrada: Google primeiro) —
+   `CloudStorageRepositoryImpl` retorna `CloudStorageFailure` explícita para esse provedor em vez
+   de deixar `OneDriveGraphDatasource` lançar `UnimplementedError` sem contexto.
+
+### Novas pendências abertas por esta rodada (2026-09-18)
+
+1. **Nada disto foi testado ao vivo** — depende do login OAuth do Google funcionar (pendência já
+   registrada), que por sua vez depende das credenciais do usuário. Todo o código foi revisado
+   linha a linha contra a documentação da Drive API v3 e o código-fonte real do Dio/pdf/hive_ce
+   (sem SDK Flutter neste ambiente para compilar).
+2. **Upload em chunks de verdade** (arquivos grandes, retomada no meio de um chunk específico)
+   não foi implementado — só upload de arquivo único. Ver decisão 3 acima.
+3. **Tela de revisão humana do módulo 4** — quando existir, deve decidir se
+   `sincronizarTodos` continua incluindo `pendenteRevisao` automaticamente ou passa a exigir
+   `aprovado` explicitamente primeiro (ver decisão 4 acima).

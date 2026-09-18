@@ -1,4 +1,4 @@
-# Resumo da entrega (atualizado após o Módulo 2 ficar funcional)
+# Resumo da entrega (atualizado após o Módulo 3 sair do stub)
 
 **Módulo 2 (Captura de Certificados) agora está funcional de ponta a ponta no navegador**,
 igual ao que já valia para o Módulo 1: seleção de imagens (`file_picker`, multi-seleção) ->
@@ -28,13 +28,21 @@ de engrenagem na tela de captura) fecha o ciclo** — sem ela, `extrairDados` se
 (`LlmRepository.testarConexao`) roda ANTES de qualquer coisa ser salva, como decidido
 anteriormente para o fluxo BYOK.
 
-77 testes unitários no total (35 anteriores + 42 novos): parsing/tolerância de JSON de modelo,
-detecção de HEIC por magic bytes, `LlmRepositoryImpl` (resolução de provedor + tradução de erro),
-`LlmExtractionDatasource` (validação de chaves obrigatórias, carregamento real do prompt-asset),
-`CertificateRepositoryImpl` (os 5 métodos do repositório, incluindo os 3 casos de
-`normalizarFormatoImagem` e o pipeline completo de `extrairDados`) e `LlmSettingsController`
-(carregamento do provedor salvo, troca de provedor, salvar-só-após-testar-com-sucesso).
+**Módulo 3 (Sincronização com o Drive) saiu do stub** — `GoogleDriveDatasource` (chamadas REST
+reais à Drive API v3, autenticação via interceptor do Dio que renova o token sozinho),
+`PdfBuilderDatasource` (imagem -> PDF via `package:pdf`; PDF de origem passa direto),
+`UploadQueueLocalStore` (Hive, sobrevive a reload) e `CloudStorageRepositoryImpl`. Upload
+resumível implementado como PUT único (PDFs de certificado são pequenos o bastante), mas já
+segue o protocolo completo do Google (trata 308 Resume Incomplete, permite retomar sessão após
+reload) — chunking de verdade fica fácil de adicionar depois sem mudar a interface. Botão de
+sincronizar na tela de captura, com retomada automática de tarefas pendentes ao abrir a tela.
+Nada disto foi testado ao vivo — depende do login OAuth do Google, que continua bloqueado (ver
+DECISOES.md).
 
-Módulos 3-4 continuam com a camada de dados em stub — não fizeram parte desta rodada.
+96 testes unitários no total (77 anteriores + 19 novos): os anteriores mais
+`CloudStorageRepositoryImpl` (pasta dedicada, upload com sucesso/retomada/erro transitório vs.
+permanente, OneDrive fora de escopo) e `PdfBuilderDatasource` (passthrough de PDF de origem).
+
+Módulo 4 (montador de dossiê) continua com a camada de dados em stub.
 
 Sem SDK Flutter neste ambiente — nada foi compilado; tudo revisado como texto.

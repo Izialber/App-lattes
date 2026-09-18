@@ -21,5 +21,9 @@ abstract class CertificateRepository {
 
   Future<List<CertificadoCapturado>> listarTodos();
 
-  Future<Either<Failure, Unit>> atualizarStatus(String certificadoId, StatusCertificado status);
+  Future<Either<Failure, Unit>> atualizarStatus(
+    String certificadoId,
+    StatusCertificado status, {
+    String? mensagemErro,
+  });
 }
