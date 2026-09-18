@@ -511,11 +511,19 @@ ele. 10 achados, 6 corrigidos na sequência (mais sérios primeiro):
 Achados não corrigidos (severidade menor, escolha deliberada de priorizar os acima):
 7. `compilarDossieFinal` não comunica no resultado quantos certificados PDF-de-origem foram
    excluídos da mesclagem — só o checklist avisa ANTES de compilar (ver rodada anterior).
-8. Certificados WEBP não testados contra o decoder de `package:pdf`/`package:image` — teoria,
-   não confirmado como bug real.
+   **Corrigido em 2026-09-18, ver entrada "Achado #7 corrigido" abaixo.**
+8. ~~Certificados WEBP não testados contra o decoder de `package:pdf`/`package:image` — teoria,
+   não confirmado como bug real.~~ **Verificado em 2026-09-18 por inspeção do código-fonte
+   pacote em `~/.pub-cache/hosted/pub.dev/image-4.9.2`**: `decodeImage` já detecta WEBP pela
+   assinatura de bytes (`WebPDecoder().isValidFile`) e decodifica via `WebPDecoder` puro-Dart
+   (`lib/src/formats/webp_decoder.dart`), sem depender de plugin nativo/plataforma — funciona
+   igual no Flutter Web. Não é um bug real; fechado sem alteração de código.
 9. Erros da câmera ao vivo usam `String` bruta (`'$e'`) em vez do modelo `Either<Failure,...>`
    do resto do app — `CameraCaptureDatasource` (que prometeria essa tradução) nunca chegou a
-   ser injetado em lugar nenhum.
+   ser injetado em lugar nenhum. Mantido como está: o erro fica só no estado local do widget
+   `_CameraCapturePage` (câmera ao vivo é uma tela cheia isolada, não faz parte do pipeline de
+   domínio persistido em `CertificateCaptureState`), então o padrão `Either` do domínio não se
+   aplica diretamente — seria refatoração sem ganho de correção, não uma correção de bug.
 
 5 testes novos cobrindo os achados corrigidos (chunking de verdade com `tamanhoDoChunk`
 configurável só para teste, cache de pasta compartilhado, coerção de tipo em JSON malformado,
