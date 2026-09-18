@@ -19,10 +19,12 @@ const double _jpegQuality = 0.9;
 ///   [CaptureFailure] pelo repositório que consome esta classe
 ///   (`certificate_capture/data/repositories`).
 ///
-/// [previewElement] expõe o `<video>` ao vivo para a presentation layer
-/// exibir via `HtmlElementView` — a integração desse widget de preview no
-/// fluxo de captura ainda está pendente (ver `certificate_capture_page.dart`);
-/// esta classe já está pronta para quando isso for implementado.
+/// [stream] expõe o `MediaStream` ao vivo para a presentation layer exibir
+/// via `HtmlElementView.fromTagName` (ver `_CameraPreview` em
+/// `certificate_capture_page.dart`) — um `<video>` próprio da UI, distinto
+/// do `<video>` interno usado por [captureFrame]. Um mesmo `MediaStream`
+/// pode alimentar vários elementos `<video>` simultaneamente (cada um com
+/// seu próprio decodificador), então não há conflito entre os dois.
 class CameraServiceWeb implements CameraService {
   web.MediaStream? _stream;
   web.HTMLVideoElement? _video;
@@ -30,7 +32,7 @@ class CameraServiceWeb implements CameraService {
   @override
   bool get isAvailable => _stream != null;
 
-  web.HTMLVideoElement? get previewElement => _video;
+  web.MediaStream? get stream => _stream;
 
   @override
   Future<void> start() async {

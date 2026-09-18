@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:web/web.dart' as web;
 
+import '../../../../core/di/injection.dart';
+import '../../../../core/platform/camera/camera_service_web.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../cloud_sync/presentation/providers/cloud_sync_providers.dart';
 import '../../domain/entities/certificado_capturado.dart';
@@ -11,14 +16,10 @@ import '../providers/certificate_capture_providers.dart';
 /// Tela de captura: upload/seleção múltipla de imagens de certificado (usa
 /// `file_picker`, funciona igual em desktop e mobile — inclusive dispara o
 /// seletor de câmera/galeria nativo em navegadores mobile quando o input
-/// aceita imagem). Cada arquivo selecionado passa pelo pipeline completo
+/// aceita imagem), ou câmera ao vivo (`getUserMedia`, via
+/// `_CameraCapturePage`). Cada arquivo/frame passa pelo pipeline completo
 /// (captura -> normalização HEIC -> extração via LLM) e aparece na lista com
 /// o status atual.
-///
-/// Câmera ao vivo (getUserMedia): `CameraServiceWeb` já está implementada
-/// (ver `core/platform/camera/camera_service_web.dart`), mas o widget de
-/// preview ao vivo (`HtmlElementView` ligado ao `<video>`) ainda não foi
-/// integrado nesta tela — pendência da próxima rodada.
 class CertificateCapturePage extends ConsumerWidget {
   const CertificateCapturePage({super.key});
 
@@ -94,6 +95,16 @@ class CertificateCapturePage extends ConsumerWidget {
               onTap: () {
                 Navigator.of(context).pop();
                 controller.selecionarPastaESincronizar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Câmera ao vivo'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const _CameraCapturePage()),
+                );
               },
             ),
           ],
@@ -277,5 +288,126 @@ class _CertificadoCard extends ConsumerWidget {
       case StatusCertificado.falhaSincronizacao:
         return Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error);
     }
+  }
+}
+
+/// Tela de câmera ao vivo. `start()`/`stop()` acontecem em `initState`/
+/// `dispose` — `start()` só é seguro aqui porque a NAVEGAÇÃO até esta tela
+/// (o tap em "Câmera ao vivo" no menu do FAB) já é o gesto do usuário que
+/// `getUserMedia` exige; não é uma chamada automática desligada de
+/// interação (ver docstring de `CameraService.start`).
+class _CameraCapturePage extends ConsumerStatefulWidget {
+  const _CameraCapturePage();
+
+  @override
+  ConsumerState<_CameraCapturePage> createState() => _CameraCapturePageState();
+}
+
+class _CameraCapturePageState extends ConsumerState<_CameraCapturePage> {
+  bool _iniciando = true;
+  bool _capturando = false;
+  String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    _iniciarCamera();
+  }
+
+  Future<void> _iniciarCamera() async {
+    try {
+      await ref.read(cameraServiceProvider).start();
+    } catch (e) {
+      if (mounted) setState(() => _erro = '$e');
+    } finally {
+      if (mounted) setState(() => _iniciando = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    ref.read(cameraServiceProvider).stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Câmera'),
+      ),
+      body: _corpo(),
+      floatingActionButton: (_iniciando || _erro != null)
+          ? null
+          : FloatingActionButton.large(
+              onPressed: _capturando ? null : _capturar,
+              child: _capturando
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Icon(Icons.camera_alt),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _corpo() {
+    if (_erro != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_erro!, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),
+        ),
+      );
+    }
+    if (_iniciando) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+    return _CameraPreview(cameraService: ref.read(cameraServiceProvider) as CameraServiceWeb);
+  }
+
+  Future<void> _capturar() async {
+    setState(() => _capturando = true);
+    try {
+      final frame = await ref.read(cameraServiceProvider).captureFrame();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      unawaited(
+        ref.read(certificateCaptureControllerProvider.notifier).processarFrameDaCamera(frame),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _erro = 'Falha ao capturar: $e');
+    } finally {
+      if (mounted) setState(() => _capturando = false);
+    }
+  }
+}
+
+/// Elemento `<video>` próprio desta tela, alimentado pelo `MediaStream` de
+/// `CameraServiceWeb` — ver docstring de `CameraServiceWeb.stream` sobre
+/// por que ter dois `<video>` (este e o interno usado por `captureFrame`)
+/// não é um problema.
+class _CameraPreview extends StatelessWidget {
+  final CameraServiceWeb cameraService;
+
+  const _CameraPreview({required this.cameraService});
+
+  @override
+  Widget build(BuildContext context) {
+    return HtmlElementView.fromTagName(
+      tagName: 'video',
+      onElementCreated: (Object element) {
+        final video = element as web.HTMLVideoElement
+          ..autoplay = true
+          ..muted = true
+          ..srcObject = cameraService.stream;
+        video.style
+          ..width = '100%'
+          ..height = '100%'
+          ..objectFit = 'cover';
+        video.play();
+      },
+    );
   }
 }

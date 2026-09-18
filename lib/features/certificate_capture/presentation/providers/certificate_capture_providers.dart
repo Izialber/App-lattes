@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/platform/camera/camera_service.dart';
 import '../../../llm_shared/presentation/providers/llm_shared_providers.dart';
 import '../../data/datasources/certificate_upload_datasource.dart';
 import '../../data/datasources/llm_extraction_datasource.dart';
@@ -159,6 +160,22 @@ class CertificateCaptureController extends Notifier<CertificateCaptureState> {
     }
 
     state = state.copyWith(processando: false);
+  }
+
+  /// Processa um frame capturado ao vivo pela câmera (ver `CameraServiceWeb`
+  /// e o widget `_CameraCapturePage` em `certificate_capture_page.dart`) —
+  /// mesmo pipeline de 3 passos de `_processarArquivo`, só que a partir de
+  /// um `CapturedFrame` em vez de um arquivo selecionado.
+  Future<void> processarFrameDaCamera(CapturedFrame frame) async {
+    state = state.copyWith(processando: true, totalSelecionado: 1, processadosAteAgora: 0);
+    await _processarArquivo(
+      ArquivoSelecionado(
+        bytes: frame.bytes,
+        mimeType: frame.mimeType,
+        nomeArquivo: 'camera_${frame.capturedAt.millisecondsSinceEpoch}.jpg',
+      ),
+    );
+    state = state.copyWith(processando: false, processadosAteAgora: 1);
   }
 
   Future<void> _processarArquivo(ArquivoSelecionado arquivo) async {

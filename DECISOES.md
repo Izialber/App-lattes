@@ -456,3 +456,18 @@ manual dos critérios do edital) foram resolvidas na sequência, ainda na mesma 
 `_CertificadoVinculoTile` agora mostra um aviso quando o certificado é PDF de origem, e o
 checklist ganhou "Adicionar critério manualmente" + remover critério (`Edital.copyWith`,
 `DossieBuilderController.adicionarCriterioManual`/`removerCriterio`).
+
+## Preview de câmera ao vivo no Módulo 2 (2026-09-18)
+
+Última pendência antiga do módulo 2 (documentada desde 2026-09-16). `CameraServiceWeb` ganhou
+um getter `stream` (o `MediaStream` cru, além do `<video>` interno que já existia para
+`captureFrame`) — um mesmo `MediaStream` alimenta múltiplos elementos `<video>` sem conflito,
+então o `<video>` visível desta tela e o interno usado para capturar o frame coexistem sem
+problema. UI nova: `_CameraCapturePage` (tela cheia, câmera + botão de captura) e `_CameraPreview`
+(`HtmlElementView.fromTagName('video', ...)`, liga `srcObject` ao stream) em
+`certificate_capture_page.dart`. `start()` é chamado em `initState` — seguro porque a própria
+navegação até a tela (tap no menu do FAB) já é o gesto do usuário que `getUserMedia` exige.
+
+Não testado ao vivo — depende de `dart:ui_web`/`HtmlElementView.fromTagName`, que não pude
+verificar contra o SDK Flutter real deste projeto (sem SDK neste ambiente). Se a versão do
+Flutter no pipeline de build for mais antiga que ~3.10, essa API pode não existir.
