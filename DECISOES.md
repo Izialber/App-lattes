@@ -469,8 +469,12 @@ problema. UI nova: `_CameraCapturePage` (tela cheia, câmera + botão de captura
 navegação até a tela (tap no menu do FAB) já é o gesto do usuário que `getUserMedia` exige.
 
 Não testado ao vivo — depende de `dart:ui_web`/`HtmlElementView.fromTagName`, que não pude
-verificar contra o SDK Flutter real deste projeto (sem SDK neste ambiente). Se a versão do
-Flutter no pipeline de build for mais antiga que ~3.10, essa API pode não existir.
+verificar contra o SDK Flutter real deste projeto (sem SDK neste ambiente). Risco de versão
+verificado por inspeção do `pubspec.yaml`: o projeto exige `sdk: ">=3.3.0 <4.0.0"` (Dart), que
+corresponde a Flutter ~3.19+ — bem depois do Flutter 3.10 (maio/2023), quando
+`HtmlElementView.fromTagName` foi introduzido. Não elimina a necessidade de teste ao vivo (a
+API pode ter mudado de comportamento, não só de existência), mas descarta o risco específico de
+"API não existe nesta versão".
 
 ## Revisão de código dos módulos 2-4 (2026-09-18)
 
