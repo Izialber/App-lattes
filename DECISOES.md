@@ -450,11 +450,9 @@ teste gerada via `package:image`).
 1. **Mesclagem em partes (`emPartes`)** não implementada — ver "Consequência em cascata" acima.
    Só é um problema real para dossiês com muitos certificados grandes; a maioria dos casos deve
    passar pela estratégia `direta`.
-2. **Certificados de origem PDF não entram na mesclagem automática do dossiê** — ficam
-   aprovados no checklist, mas silenciosamente fora do PDF final. Devia pelo menos avisar
-   visualmente na tela de checklist quais certificados aprovados não vão entrar — não
-   implementado ainda.
-3. **Edição manual dos critérios extraídos** (a tela de checklist só mostra os critérios,
-   não deixa editar/adicionar/remover) — o prompt já pede pra não inventar critérios quando o
-   PDF não tem texto legível, mas hoje isso ainda bloqueia o dossiê inteiro (`edital.criterios`
-   fica vazio) sem um jeito de o usuário preencher manualmente pela UI.
+
+Duas pendências que estavam aqui (aviso visual de certificado PDF excluído da mesclagem, edição
+manual dos critérios do edital) foram resolvidas na sequência, ainda na mesma sessão: cada
+`_CertificadoVinculoTile` agora mostra um aviso quando o certificado é PDF de origem, e o
+checklist ganhou "Adicionar critério manualmente" + remover critério (`Edital.copyWith`,
+`DossieBuilderController.adicionarCriterioManual`/`removerCriterio`).

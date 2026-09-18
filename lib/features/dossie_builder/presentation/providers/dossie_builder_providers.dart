@@ -12,6 +12,7 @@ import '../../data/datasources/llm_edital_datasource.dart';
 import '../../data/datasources/pdf_merge_datasource.dart';
 import '../../data/local/dossie_local_store.dart';
 import '../../data/repositories/dossie_repository_impl.dart';
+import '../../domain/entities/criterio_pontuacao.dart';
 import '../../domain/entities/dossie.dart';
 import '../../domain/entities/edital.dart';
 import '../../domain/entities/vinculo_aprovado.dart';
@@ -210,6 +211,30 @@ class DossieBuilderController extends Notifier<DossieBuilderState> {
         certificadosSincronizados: sincronizados,
       ),
     );
+  }
+
+  /// Edição manual dos critérios do edital — sempre válida, não só quando a
+  /// extração automática falha: o edital raramente é padronizado (ver
+  /// docstring de [Edital]), então o usuário pode querer corrigir/completar
+  /// mesmo quando a extração via LLM funcionou.
+  Future<void> adicionarCriterioManual(CriterioPontuacao criterio) async {
+    final edital = state.edital;
+    if (edital == null) return;
+
+    final atualizado = edital.copyWith(criterios: [...edital.criterios, criterio]);
+    await ref.read(dossieLocalStoreProvider).salvarEdital(atualizado);
+    state = state.copyWith(edital: atualizado);
+  }
+
+  Future<void> removerCriterio(String criterioId) async {
+    final edital = state.edital;
+    if (edital == null) return;
+
+    final atualizado = edital.copyWith(
+      criterios: edital.criterios.where((c) => c.id != criterioId).toList(),
+    );
+    await ref.read(dossieLocalStoreProvider).salvarEdital(atualizado);
+    state = state.copyWith(edital: atualizado);
   }
 
   Future<void> registrarDecisao(VinculoAprovado decisao) async {

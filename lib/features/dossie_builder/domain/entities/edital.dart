@@ -20,6 +20,15 @@ class Edital extends Equatable {
     this.criterios = const [],
   });
 
+  Edital copyWith({List<CriterioPontuacao>? criterios}) {
+    return Edital(
+      id: id,
+      nomeArquivoOriginal: nomeArquivoOriginal,
+      orgaoOuBanca: orgaoOuBanca,
+      criterios: criterios ?? this.criterios,
+    );
+  }
+
   @override
   List<Object?> get props => [id, nomeArquivoOriginal, orgaoOuBanca, criterios];
 }
