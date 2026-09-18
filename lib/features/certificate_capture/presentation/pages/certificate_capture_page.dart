@@ -49,6 +49,11 @@ class CertificateCapturePage extends ConsumerWidget {
                 : () => ref.read(cloudSyncControllerProvider.notifier).sincronizarTodos(),
           ),
           IconButton(
+            tooltip: 'Montar dossiê',
+            icon: const Icon(Icons.description_outlined),
+            onPressed: () => context.go(AppRoutes.dossieNovo),
+          ),
+          IconButton(
             tooltip: 'Configurar provedor de LLM',
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.go(AppRoutes.configuracoesLlm),

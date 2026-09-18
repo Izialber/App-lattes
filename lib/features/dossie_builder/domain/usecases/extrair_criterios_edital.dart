@@ -11,8 +11,13 @@ class ExtrairCriteriosEdital {
 
   Future<Either<Failure, Edital>> call({
     required String editalId,
+    required String nomeArquivoOriginal,
     required List<int> editalPdfBytes,
   }) {
-    return _repository.extrairCriterios(editalId: editalId, editalPdfBytes: editalPdfBytes);
+    return _repository.extrairCriterios(
+      editalId: editalId,
+      nomeArquivoOriginal: nomeArquivoOriginal,
+      editalPdfBytes: editalPdfBytes,
+    );
   }
 }

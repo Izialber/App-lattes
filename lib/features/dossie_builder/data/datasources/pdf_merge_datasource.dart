@@ -1,62 +1,121 @@
+import 'dart:typed_data';
+
+import 'package:pdf/widgets.dart' as pw;
+
 import '../../../../core/platform/task_runner/task_runner.dart';
 import '../../domain/usecases/decidir_estrategia_de_memoria.dart';
 
-/// Mescla os PDFs individuais dos certificados aprovados em um único PDF
-/// paginado com sumário, usando `package:pdf` (puro Dart, funciona no web).
+/// Monta o PDF final do dossiê (sumário + uma página por certificado) a
+/// partir das imagens ORIGINAIS dos certificados — não dos PDFs individuais
+/// já enviados ao Drive pelo módulo 3. Isso é uma mudança em relação ao
+/// contrato originalmente documentado aqui (`pdfsEmOrdem` como PDFs prontos)
+/// — ver DECISOES.md, "Mesclagem do dossiê": `package:pdf` é uma biblioteca
+/// de ESCRITA de PDF, sem capacidade de importar páginas de um PDF já
+/// existente, então "mesclar PDFs prontos" não é possível com as
+/// dependências deste projeto. Construir o dossiê direto a partir das
+/// imagens (mesma técnica de `PdfBuilderDatasource`, só que N páginas num
+/// documento só em vez de N documentos de 1 página) contorna o problema por
+/// completo, sem precisar de nenhuma capacidade de "importação" de PDF.
+///
 /// TODA a mesclagem passa por [TaskRunner.run] — nunca chamada direta no
 /// isolate de UI.
-///
-/// A decisão de COMO mesclar (direto / em partes / inviável) é feita por
-/// [DecidirEstrategiaDeMemoria] (lógica pura, testada — ver
-/// `test/features/dossie_builder/domain/usecases/decidir_estrategia_de_memoria_test.dart`),
-/// chamada pelo `DossieRepositoryImpl.compilarDossieFinal` ANTES de invocar
-/// os métodos deste datasource. Este arquivo só executa a mesclagem em si.
-///
-/// PENDENTE (fora do escopo do entregável 5): implementação real da
-/// composição de páginas e geração do sumário (título + número de página).
 class PdfMergeDatasource {
   final TaskRunner _taskRunner;
 
   const PdfMergeDatasource(this._taskRunner);
 
-  /// Mesclagem direta de todos os PDFs de uma vez (estratégia
-  /// [EstrategiaMesclagemDossie.direta]).
+  /// Mesclagem direta (estratégia [EstrategiaMesclagemDossie.direta]):
+  /// [imagensEmOrdem] são bytes de imagem (JPEG/PNG — o mesmo formato já
+  /// normalizado pelo módulo 2), NÃO PDFs. Certificados cuja origem já era
+  /// PDF (suportado desde 2026-09-16) não podem passar por aqui — ver
+  /// pendência em DECISOES.md; `DossieRepositoryImpl` os exclui antes de
+  /// chamar este método.
   Future<List<int>> mesclarComSumario({
-    required List<List<int>> pdfsEmOrdem,
+    required List<List<int>> imagensEmOrdem,
     required List<String> titulosParaSumario,
   }) {
-    throw UnimplementedError('PdfMergeDatasource.mesclarComSumario: pendente (ver DECISOES.md)');
+    return _taskRunner.run(
+      task: () async => _montarDocumento(imagensEmOrdem, titulosParaSumario),
+      estimatedInputBytes: _somaBytes(imagensEmOrdem),
+      debugLabel: 'mesclar-dossie-direto',
+    );
   }
 
-  /// Mescla apenas UM lote em um PDF intermediário (sem sumário — o sumário
-  /// final só é montado na mesclagem dos intermediários). Usado pela
-  /// estratégia [EstrategiaMesclagemDossie.emPartes]: o chamador libera os
-  /// bytes dos PDFs de origem daquele lote assim que este método retorna,
-  /// antes de processar o próximo lote, para nunca manter mais de um lote
-  /// de PDFs originais na memória ao mesmo tempo.
+  /// PENDENTE: a estratégia [EstrategiaMesclagemDossie.emPartes] depende de
+  /// mesclar PDFs INTERMEDIÁRIOS já gerados (não imagens cruas) — o mesmo
+  /// problema de "package:pdf não importa PDF existente" descrito na
+  /// docstring da classe, mas sem a saída de "construir direto das
+  /// imagens" (os intermediários já são PDFs multi-página, não uma lista de
+  /// imagens). `DossieRepositoryImpl.compilarDossieFinal` retorna uma
+  /// falha clara para este caso em vez de chamar este método.
   Future<List<int>> mesclarLote(List<List<int>> pdfsDoLote) {
-    throw UnimplementedError('PdfMergeDatasource.mesclarLote: pendente (ver DECISOES.md)');
+    throw UnimplementedError(
+      'PdfMergeDatasource.mesclarLote: mesclagem em partes pendente — ver '
+      'DECISOES.md, "Mesclagem do dossiê" (package:pdf não importa PDF existente).',
+    );
   }
 
-  /// Mescla os PDFs intermediários (um por lote, já bem menores que a soma
-  /// dos originais) no PDF final, agora sim com o sumário completo — último
-  /// passo da estratégia [EstrategiaMesclagemDossie.emPartes].
+  /// Ver [mesclarLote].
   Future<List<int>> mesclarIntermediariosComSumario({
     required List<List<int>> pdfsIntermediarios,
     required List<String> titulosParaSumario,
   }) {
     throw UnimplementedError(
-      'PdfMergeDatasource.mesclarIntermediariosComSumario: pendente (ver DECISOES.md)',
+      'PdfMergeDatasource.mesclarIntermediariosComSumario: mesclagem em partes pendente — '
+      'ver DECISOES.md, "Mesclagem do dossiê".',
     );
   }
 
-  /// Heurística de estimativa de bytes de saída de uma mesclagem direta —
-  /// mesmo fator de folga usado em [DecidirEstrategiaDeMemoria], mantido
-  /// aqui só para quem quiser estimar o tamanho final do arquivo (não é
-  /// usado para a decisão de estratégia, que trabalha com os tamanhos de
-  /// entrada brutos).
-  int estimarBytesSaida(List<List<int>> pdfsEmOrdem) {
-    final somaEntrada = pdfsEmOrdem.fold<int>(0, (soma, pdf) => soma + pdf.length);
-    return (somaEntrada * 1.6).round();
+  /// Heurística de estimativa de bytes de saída de uma mesclagem direta.
+  int estimarBytesSaida(List<List<int>> imagensEmOrdem) {
+    return (_somaBytes(imagensEmOrdem) * 1.6).round();
+  }
+
+  int _somaBytes(List<List<int>> listas) =>
+      listas.fold<int>(0, (soma, bytes) => soma + bytes.length);
+
+  Future<List<int>> _montarDocumento(
+    List<List<int>> imagensEmOrdem,
+    List<String> titulosParaSumario,
+  ) async {
+    final documento = pw.Document();
+
+    documento.addPage(
+      pw.Page(
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text('Sumário', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 16),
+            for (var i = 0; i < titulosParaSumario.length; i++)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Expanded(child: pw.Text(titulosParaSumario[i])),
+                    // Sumário é a página 1; cada certificado ocupa
+                    // exatamente 1 página em ordem — daí o `i + 2`.
+                    pw.Text('${i + 2}'),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    for (final imagem in imagensEmOrdem) {
+      documento.addPage(
+        pw.Page(
+          margin: pw.EdgeInsets.zero,
+          build: (context) => pw.Center(
+            child: pw.Image(pw.MemoryImage(Uint8List.fromList(imagem)), fit: pw.BoxFit.contain),
+          ),
+        ),
+      );
+    }
+
+    return documento.save();
   }
 }

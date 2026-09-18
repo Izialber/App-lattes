@@ -8,6 +8,7 @@ import '../../features/cloud_sync/presentation/pages/oauth_callback_page.dart';
 import '../../features/cloud_sync/presentation/providers/auth_providers.dart';
 import '../../features/dossie_builder/presentation/pages/dossie_checklist_page.dart';
 import '../../features/dossie_builder/presentation/pages/dossie_compile_page.dart';
+import '../../features/dossie_builder/presentation/pages/dossie_new_page.dart';
 import '../../features/lattes_parser/presentation/pages/lattes_import_page.dart';
 import '../../features/llm_shared/presentation/pages/llm_settings_page.dart';
 
@@ -23,6 +24,7 @@ abstract class AppRoutes {
   static const importarLattes = '/importar-lattes';
   static const capturarCertificados = '/certificados';
   static const configuracoesLlm = '/configuracoes/llm';
+  static const dossieNovo = '/dossie/novo';
   static const dossieChecklist = '/dossie/:dossieId/checklist';
   static const dossieCompilar = '/dossie/:dossieId/compilar';
 
@@ -92,6 +94,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.configuracoesLlm,
         builder: (context, state) => const LlmSettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.dossieNovo,
+        builder: (context, state) => const DossieNewPage(),
       ),
       GoRoute(
         path: AppRoutes.dossieChecklist,

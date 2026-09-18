@@ -5,18 +5,24 @@ import '../../../certificate_capture/domain/entities/certificado_capturado.dart'
 import '../entities/dossie.dart';
 import '../entities/edital.dart';
 import '../entities/vinculo_aprovado.dart';
+import '../entities/vinculo_sugerido_dossie.dart';
 
 abstract class DossieRepository {
   /// Extrai os critérios de pontuação do PDF do edital via LLM. Resultado é
-  /// sempre sugestão (ver docstring de [Edital]).
+  /// sempre sugestão (ver docstring de [Edital]). [nomeArquivoOriginal] vem
+  /// de quem chama (a UI sabe o nome do arquivo escolhido pelo usuário) —
+  /// nem o LLM nem o PDF em si têm como fornecer isso de forma confiável.
   Future<Either<Failure, Edital>> extrairCriterios({
     required String editalId,
+    required String nomeArquivoOriginal,
     required List<int> editalPdfBytes,
   });
 
   /// Cruza os critérios do edital com os certificados já sincronizados e
-  /// gera sugestões de vínculo (nunca aprovadas automaticamente).
-  Future<Either<Failure, Edital>> sugerirVinculos({
+  /// gera sugestões de vínculo (nunca aprovadas automaticamente — cada uma
+  /// exige uma [VinculoAprovado] explícita do usuário antes de valer para a
+  /// compilação final).
+  Future<Either<Failure, List<VinculoSugeridoDossie>>> sugerirVinculos({
     required Edital edital,
     required List<CertificadoCapturado> certificadosSincronizados,
   });

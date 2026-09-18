@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart' show Either;
 import '../../../../core/error/failures.dart';
 import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
 import '../entities/edital.dart';
+import '../entities/vinculo_sugerido_dossie.dart';
 import '../repositories/dossie_repository.dart';
 
 /// Resultado é sempre consumido pela tela de checklist (human-in-the-loop);
@@ -13,7 +14,7 @@ class SugerirVinculos {
 
   const SugerirVinculos(this._repository);
 
-  Future<Either<Failure, Edital>> call({
+  Future<Either<Failure, List<VinculoSugeridoDossie>>> call({
     required Edital edital,
     required List<CertificadoCapturado> certificadosSincronizados,
   }) {

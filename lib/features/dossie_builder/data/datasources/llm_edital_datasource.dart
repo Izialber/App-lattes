@@ -1,13 +1,16 @@
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+
 import '../../../llm_shared/domain/repositories/llm_repository.dart';
 
-/// Extrai texto do PDF do edital (via `syncfusion_flutter_pdf`, página a
-/// página, cedendo o event loop entre páginas) e envia ao LLM com o prompt
-/// de interpretação de critérios de Prova de Títulos.
+/// Extrai texto do PDF do edital (via `syncfusion_flutter_pdf`) e envia ao
+/// LLM com o prompt de interpretação de critérios de Prova de Títulos.
 ///
-/// PENDENTE (fora do escopo do entregável 5): implementação real, incluindo
-/// tratamento de editais digitalizados como imagem (sem texto extraível) —
-/// nesse caso, retornar falha clara pedindo que o usuário confirme os
-/// critérios manualmente, em vez de enviar página em branco ao LLM.
+/// Editais digitalizados como imagem (sem texto selecionável) não têm como
+/// ser lidos por `PdfTextExtractor` — nesse caso, lança um erro claro (ver
+/// [extrairCriterios]) em vez de mandar um texto vazio ao LLM, que
+/// inventaria critérios a partir de nada. A UI de checklist (módulo 4)
+/// sempre permite edição manual dos critérios de qualquer forma.
 class LlmEditalDatasource {
   final LlmRepository _llmRepository;
 
@@ -15,7 +18,33 @@ class LlmEditalDatasource {
 
   static const String _promptAssetPath = 'assets/prompts/extracao_criterios_edital.txt';
 
-  Future<Map<String, dynamic>> extrairCriterios(List<int> editalPdfBytes) {
-    throw UnimplementedError('LlmEditalDatasource.extrairCriterios: pendente (ver DECISOES.md)');
+  Future<Map<String, dynamic>> extrairCriterios(List<int> editalPdfBytes) async {
+    final texto = _extrairTextoDoPdf(editalPdfBytes);
+    if (texto.trim().isEmpty) {
+      throw StateError(
+        'Não foi possível ler texto deste PDF — provavelmente é um edital digitalizado '
+        '(imagem escaneada, sem texto selecionável). Preencha os critérios manualmente.',
+      );
+    }
+
+    final prompt = await rootBundle.loadString(_promptAssetPath);
+    final resultado = await _llmRepository.extrairJsonDeTexto(
+      texto: texto,
+      promptExtracao: prompt,
+    );
+
+    return resultado.match(
+      (falha) => throw StateError(falha.message),
+      (json) => json,
+    );
+  }
+
+  String _extrairTextoDoPdf(List<int> bytes) {
+    final documento = PdfDocument(inputBytes: bytes);
+    try {
+      return PdfTextExtractor(documento).extractText();
+    } finally {
+      documento.dispose();
+    }
   }
 }

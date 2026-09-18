@@ -386,3 +386,75 @@ Decisões de implementação:
 3. **Tela de revisão humana do módulo 4** — quando existir, deve decidir se
    `sincronizarTodos` continua incluindo `pendenteRevisao` automaticamente ou passa a exigir
    `aprovado` explicitamente primeiro (ver decisão 4 acima).
+
+## Módulo 4 — Montador de Dossiê (2026-09-18)
+
+Continuação do trabalho autônomo (pedido do usuário: seguir sem esperar por ele, e pular para
+outra coisa se travar em algo). Implementação completa da camada de dados que antes era só
+stub — com uma descoberta técnica que mudou o desenho original.
+
+**Descoberta: `package:pdf` não mescla PDFs existentes.** O contrato original de
+`PdfMergeDatasource` (`pdfsEmOrdem: List<List<int>>`) assumia que dava pra pegar PDFs já
+prontos (os que o módulo 3 gera por certificado) e "mesclar" — mas `package:pdf` é uma
+biblioteca de ESCRITA de PDF (constrói documento a partir de conteúdo Dart), sem nenhuma
+capacidade de importar página de um PDF já existente. Confirmado lendo o código-fonte do
+pacote (não achei `importPage`/`merge`/equivalente) e o do `syncfusion_flutter_pdf` (usado
+hoje só para extrair texto) — também sem essa capacidade na versão community usada aqui.
+Cogitei rasterizar PDFs existentes via `Printing.raster()` (pacote `printing`, já dependência,
+usa pdf.js no web) para contornar isso, mas isso exigiria carregar pdf.js de um CDN em tempo de
+execução — quebraria a CSP atual (`script-src`) e traria uma dependência de rede externa não
+testável ao vivo neste ambiente. Descartado por ora.
+
+**Solução adotada**: `PdfMergeDatasource.mesclarComSumario` agora recebe as IMAGENS originais
+dos certificados (não PDFs prontos) e constrói o dossiê inteiro como um documento novo, do
+zero — mesma técnica de `PdfBuilderDatasource` (módulo 3), só que N páginas num documento em
+vez de N documentos de 1 página. Isso resolve o problema por completo PARA CERTIFICADOS DE
+ORIGEM IMAGEM (a maioria). **Certificados cuja origem já era PDF (suportado desde
+2026-09-16) ficam de fora da mesclagem automática** — `DossieRepositoryImpl.
+compilarDossieFinal` os exclui silenciosamente do PDF final, contando quantos foram excluídos
+para a mensagem de erro no caso extremo de todos os aprovados serem PDF de origem.
+
+**Consequência em cascata**: a estratégia `emPartes` de `DecidirEstrategiaDeMemoria` (mesclar
+PDFs intermediários já prontos, para não estourar memória com dossiês grandes) também depende
+de "mesclar PDF existente" — mesmo problema, sem solução disponível agora.
+`PdfMergeDatasource.mesclarLote`/`mesclarIntermediariosComSumario` continuam
+`UnimplementedError`, e `compilarDossieFinal` retorna uma `DossieFailure` clara (pedindo para
+reduzir a quantidade de certificados ou usar um desktop) em vez de tentar chamá-los. Só a
+estratégia `direta` está implementada de verdade.
+
+**Gaps de interface descobertos ao implementar** (mesmo padrão das rodadas anteriores — a
+interface original não sobrevivia ao contato com a implementação real):
+1. `DossieRepository.sugerirVinculos` retornava `Either<Failure, Edital>` — mas `Edital` não
+   tem nenhum campo para guardar sugestões de vínculo, e o método não muta os certificados
+   passados. Criada a entidade `VinculoSugeridoDossie` (certificadoId + criterioId + confiança)
+   e o retorno virou `Either<Failure, List<VinculoSugeridoDossie>>`.
+2. `DossieRepository.extrairCriterios` não recebia o nome do arquivo original do edital, mas
+   `Edital.nomeArquivoOriginal` é obrigatório — adicionado `nomeArquivoOriginal` como parâmetro.
+3. `RegistrarDecisaoVinculo` era citado na docstring de `SugerirVinculos` desde a entrega
+   original, mas a classe de use case nunca tinha sido criada — só o método do repositório
+   existia. Criada agora.
+
+**Sugestão de vínculo é heurística pura, não chamada de LLM** — decisão deliberada: comparação
+de sobreposição de palavras (Jaccard simplificado) entre título/instituição do certificado e a
+descrição de cada critério do edital, sem custo de API nem latência extra. É só uma sugestão
+inicial revisada no checklist de qualquer forma, então o ganho de precisão de uma chamada de
+LLM não pareceu compensar o custo/complexidade extra nesta rodada.
+
+**Nada disto foi testado ao vivo** (mesmo motivo dos módulos 2/3) — 29 testes novos cobrindo
+`DossieRepositoryImpl` (os 4 métodos, incluindo a heurística de sugestão e a exclusão de
+certificados PDF na compilação) e `PdfMergeDatasource` (PDF de saída válido, com imagem PNG de
+teste gerada via `package:image`).
+
+### Novas pendências abertas por esta rodada (2026-09-18)
+
+1. **Mesclagem em partes (`emPartes`)** não implementada — ver "Consequência em cascata" acima.
+   Só é um problema real para dossiês com muitos certificados grandes; a maioria dos casos deve
+   passar pela estratégia `direta`.
+2. **Certificados de origem PDF não entram na mesclagem automática do dossiê** — ficam
+   aprovados no checklist, mas silenciosamente fora do PDF final. Devia pelo menos avisar
+   visualmente na tela de checklist quais certificados aprovados não vão entrar — não
+   implementado ainda.
+3. **Edição manual dos critérios extraídos** (a tela de checklist só mostra os critérios,
+   não deixa editar/adicionar/remover) — o prompt já pede pra não inventar critérios quando o
+   PDF não tem texto legível, mas hoje isso ainda bloqueia o dossiê inteiro (`edital.criterios`
+   fica vazio) sem um jeito de o usuário preencher manualmente pela UI.
