@@ -1,16 +1,26 @@
 # Resumo da entrega (Módulos 1-4 têm implementação real; nenhum testado ao vivo ainda)
 
-**Módulo 2 (Captura de Certificados) agora está funcional de ponta a ponta no navegador**,
-igual ao que já valia para o Módulo 1: seleção de imagens (`file_picker`, multi-seleção) ->
-registro local (Hive/IndexedDB, sobrevive a reload de aba) -> normalização de formato (detecção
-de HEIC por magic bytes + conversão via `<canvas>`) -> compressão (`package:image`, via
-`TaskRunner`) -> extração de dados via LLM (Gemini/OpenAI, BYOK) -> tela de lista com status por
-certificado e "tentar novamente" para falhas de extração. Câmera ao vivo (`getUserMedia`) agora
-tem preview ligado na tela (`HtmlElementView.fromTagName`, ver DECISOES.md) — upload continua
-sendo o caminho principal, inclusive no mobile, onde o seletor de arquivo já abre a
-câmera/galeria nativa do aparelho.
+**Login "Continuar com Google" testado ao vivo pela primeira vez** — encontrou um bug real (o
+Google exige `client_secret` na troca de token mesmo com PKCE, pra Client ID tipo "Aplicativo da
+Web") e corrigido (ver DECISOES.md). Reteste completo depois do deploy da correção ainda
+pendente — a sessão foi interrompida antes de eu conseguir confirmar de ponta a ponta.
 
-**LLM compartilhado (`llm_shared`) também ficou real**: `GeminiLlmDatasource` e
+**Módulo 2 foi redesenhado do zero**, por decisão do usuário depois de discutir a UX: em vez de
+capturar certificados soltos e usar LLM pra tentar adivinhar a qual entrada do currículo cada um
+pertence, agora **cada entrada do currículo Lattes importado (Módulo 1) já tem seu próprio botão
+de upload ao lado** — sem LLM (título/instituição/data já vêm do XML), sem heurística de vínculo
+(o vínculo nasce certo, porque o botão está na própria entrada). Nova feature `comprovantes/`,
+nova tela em `/comprovantes`. Pré-requisito descoberto no caminho: o currículo importado não era
+persistido nenhum lugar (reload de aba perdia tudo) — corrigido com `CurriculoLocalStore` novo.
+Como as entidades do Lattes não têm id, um id estável é derivado por hash dos campos que
+identificam cada entrada — ver DECISOES.md para a limitação aceita (edição de um campo
+identificador no Lattes oficial "orfaniza" o comprovante antigo, que fica visível numa seção
+separada em vez de sumir). O Módulo 2 antigo (captura solta + LLM) continua no repositório, só
+desconectado da navegação principal — Módulo 3 e Módulo 4 não foram tocados nesta rodada,
+por instrução explícita do usuário de fazer um módulo de cada vez.
+
+**LLM compartilhado (`llm_shared`) também ficou real** (usado pelo Módulo 2 antigo e pelo Módulo
+4 — o Módulo 2 novo, descrito acima, não usa LLM nenhum): `GeminiLlmDatasource` e
 `OpenAiLlmDatasource` fazem chamadas HTTP de verdade (Dio) para as respectivas APIs, com
 tratamento de JSON cercado em markdown (comum em modelos menores) e mapeamento de erro
 401/403/429 para `LlmFailure.isQuotaOrAuth`. `LlmRepositoryImpl` resolve sozinho qual provedor
@@ -67,6 +77,7 @@ três implementações inconsistentes de "achar item por id" unificadas com `pac
 completa, incluindo os achados não corrigidos por severidade menor (duplicação estrutural entre
 os 3 local stores, fora de escopo sem SDK Flutter para validar o refactor).
 
-119 testes unitários no total.
+135 testes unitários no total (119 anteriores + 16 novos do módulo de comprovantes: geração de
+id estável e o repositório de comprovantes).
 
 Sem SDK Flutter neste ambiente — nada foi compilado; tudo revisado como texto.

@@ -665,4 +665,64 @@ descartada por ora — decisão explícita do usuário de priorizar a rota mais 
 pessoal de um usuário só; documentado aqui para reconsiderar se o app for publicado para mais
 gente no futuro.
 
-Correção aplicada; reteste ao vivo depois do deploy ainda pendente no momento desta entrada.
+Correção aplicada; reteste ao vivo depois do deploy ainda pendente no momento desta entrada —
+a sessão foi interrompida (usuário reportou "ficou travado o site") antes de eu conseguir repetir
+o fluxo "Continuar com Google" com o `client_secret` novo em produção. **Pendente**: confirmar ao
+vivo que o login completa de ponta a ponta agora.
+
+## Módulo 2 redesenhado: comprovante por entrada do Lattes, sem LLM (2026-09-22)
+
+Discussão de UX com o usuário (ver transcript da sessão) mudou o desenho do Módulo 2 por completo.
+O desenho antigo (`certificate_capture/**`) capturava certificados avulsos e usava LLM pra tentar
+*adivinhar* título/instituição/data e depois a qual critério do edital cada um pertencia
+(heurística de similaridade no Módulo 4). Decisão do usuário: inverter a lógica — **cada entrada
+do currículo Lattes já importado (Módulo 1) precisa ter um botão de upload do lado dela**, sem
+LLM (título/instituição/data já vêm do XML, não tem nada pra extrair de novo) e sem heurística de
+vínculo (o vínculo já nasce certo, porque o botão está na própria entrada). O cruzamento com um
+edital específico (Módulo 4, quais entradas contam pra quais critérios) fica pra depois, como
+etapa separada que vai selecionar dentro dessa biblioteca de comprovantes já completa — **fora de
+escopo nesta rodada**, por instrução explícita ("vamos fazer primeiro esse módulo 2 antes de
+seguir para o próximo").
+
+**Achado bloqueante na exploração**: `CurriculoLattes` (currículo importado no Módulo 1) não era
+persistido em lugar nenhum — `LattesImportController` era um `Notifier` cujo estado vivia só em
+memória, perdido a cada reload de aba. Inofensivo enquanto o Módulo 1 era "importar e olhar uma
+vez", mas inviabilizava o novo Módulo 2 (anexar comprovante a 50-100+ entradas é tarefa de vários
+dias). Corrigido com `CurriculoLocalStore` novo (`lattes_parser/data/local/`), que persiste o
+currículo inteiro em Hive (chave fixa, só existe um currículo por usuário) — `importarArquivo` e
+`confirmarVinculo` salvam a cada mudança, `build()` carrega o persistido antes de cair na tela de
+"selecionar XML".
+
+**Identidade estável das entradas**: nenhuma entidade do Lattes (`Curso`, `Publicacao` etc.) tem
+id — todas são `Equatable` por valor. Preciso de um id estável pra guardar "esta entrada tem
+comprovante" e sobreviver a reimportações do mesmo XML. Solução: hash sha256 (truncado, via
+`package:crypto`, já dependência do projeto) sobre os campos que identificam cada entrada dentro
+da sua categoria, prefixado pelo nome da categoria pra evitar colisão cross-categoria — ver
+`gerarIdEntrada`/`gerarEntradasLattes`, `comprovantes/domain/entities/entrada_lattes_ref.dart` e
+`mapear_entradas_lattes.dart`. **Limitação aceita conscientemente**: se o usuário editar um campo
+identificador da entrada no Lattes oficial e reexportar, o id derivado muda e o comprovante antigo
+fica "órfão" — não é perdido (fica numa seção separada "Comprovantes sem entrada correspondente"
+na tela), só desvinculado, até o usuário decidir manualmente o que fazer com ele. Fuzzy-matching
+pra tentar re-ligar automaticamente foi considerado e descartado por complexidade desproporcional
+ao problema.
+
+Nova feature `comprovantes/` (domain/data/presentation, mesmo padrão Clean Architecture do resto
+do projeto) — `ComprovanteRepository`/`ComprovanteLocalStore` seguem exatamente o padrão de boxes
+Hive separadas (metadados + bytes) já usado em `CertificateLocalStore`. MVP: 1 arquivo por
+entrada (troca a chave do Hive de `entradaId` pra `entradaId#índice` se precisar de mais de um no
+futuro). Sem câmera ao vivo nesta rodada — só botão de upload de arquivo, que foi literalmente o
+que o usuário pediu; fácil de adicionar depois reaproveitando `cameraServiceProvider` se fizer
+falta.
+
+**Fora de escopo, deliberado**: Módulo 3 (sync Drive) e Módulo 4 (dossiê/edital) continuam
+operando sobre `CertificadoCapturado`/`StatusCertificado` do Módulo 2 antigo, sem nenhuma mudança
+— não ficam quebrados, só desconectados da nova tela. O código do Módulo 2 antigo não foi
+removido, só ficou inalcançável pela navegação principal (o botão que ia pra
+`AppRoutes.capturarCertificados` agora vai pra `AppRoutes.comprovantes`; a rota antiga continua
+existindo). Decidir se remove de vez ou reaproveita fica pra quando entrarmos no Módulo 3/4.
+
+Testado como texto (sem SDK Flutter neste ambiente, mesma limitação de toda a sessão) — testes
+novos cobrem a geração de id (determinismo, sem colisão cross-categoria, sensibilidade a mudança
+de campo) e o repositório de comprovantes (anexar, substituir, HEIC, remover, listar). Sem teste
+de round-trip do `CurriculoLocalStore` em si — o projeto não testa nenhum local store Hive
+diretamente (só via mock na camada de repositório), mesmo padrão mantido aqui.

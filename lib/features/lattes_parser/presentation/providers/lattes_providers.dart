@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/datasources/lattes_file_datasource_web.dart';
+import '../../data/local/curriculo_local_store.dart';
 import '../../data/repositories/lattes_repository_impl.dart';
 import '../../domain/entities/curriculo_lattes.dart';
 import '../../domain/entities/experiencia_profissional.dart';
@@ -18,6 +19,8 @@ import '../../domain/usecases/importar_curriculo_lattes.dart';
 final lattesFileDatasourceProvider = Provider((ref) => LattesFileDatasourceWeb());
 
 final lattesRepositoryProvider = Provider<LattesRepository>((ref) => const LattesRepositoryImpl());
+
+final curriculoLocalStoreProvider = Provider((ref) => const CurriculoLocalStore());
 
 final importarCurriculoLattesProvider = Provider(
   (ref) => ImportarCurriculoLattes(ref.watch(lattesRepositoryProvider)),
@@ -37,8 +40,6 @@ class LattesImportState {
   final CurriculoLattes? curriculo;
 
   const LattesImportState({this.carregando = false, this.erro, this.curriculo});
-
-  const LattesImportState.inicial() : this();
 
   LattesImportState copyWith({
     bool? carregando,
@@ -60,7 +61,14 @@ class LattesImportState {
 /// "vínculo em andamento" (ver DECISOES.md).
 class LattesImportController extends Notifier<LattesImportState> {
   @override
-  LattesImportState build() => const LattesImportState.inicial();
+  LattesImportState build() {
+    // Sem isso, um reload de aba perdia o currículo inteiro (estado só em
+    // memória) — inviável pro módulo de comprovantes, onde anexar arquivo a
+    // cada entrada é tarefa de vários dias, não de uma sessão só (achado ao
+    // desenhar esse módulo, ver DECISOES.md).
+    final curriculoPersistido = ref.read(curriculoLocalStoreProvider).buscar();
+    return LattesImportState(curriculo: curriculoPersistido);
+  }
 
   Future<void> importarArquivo() async {
     state = state.copyWith(carregando: true, limparErro: true);
@@ -82,16 +90,22 @@ class LattesImportController extends Notifier<LattesImportState> {
     }
 
     final resultado = ref.read(importarCurriculoLattesProvider).call(conteudo);
-    resultado.match(
-      (falha) => state = state.copyWith(carregando: false, erro: falha.message),
-      (curriculo) => state = LattesImportState(curriculo: curriculo),
+    await resultado.match(
+      (falha) async => state = state.copyWith(carregando: false, erro: falha.message),
+      (curriculo) async {
+        await ref.read(curriculoLocalStoreProvider).salvar(curriculo);
+        state = LattesImportState(curriculo: curriculo);
+      },
     );
   }
 
   /// Chamado pela UI quando o usuário responde à pergunta "este vínculo com
   /// [instituição] ainda está ativo?" para uma experiência marcada com
   /// `precisaConfirmacaoVinculoAtual`.
-  void confirmarVinculo(ExperienciaProfissional experiencia, {required bool aindaAtivo}) {
+  Future<void> confirmarVinculo(
+    ExperienciaProfissional experiencia, {
+    required bool aindaAtivo,
+  }) async {
     final curriculo = state.curriculo;
     if (curriculo == null) return;
 
@@ -100,7 +114,9 @@ class LattesImportController extends Notifier<LattesImportState> {
         .map((e) => identical(e, experiencia) ? confirmar(e, aindaAtivo: aindaAtivo) : e)
         .toList(growable: false);
 
-    state = state.copyWith(curriculo: curriculo.copyWithExperiencias(novasExperiencias));
+    final atualizado = curriculo.copyWithExperiencias(novasExperiencias);
+    await ref.read(curriculoLocalStoreProvider).salvar(atualizado);
+    state = state.copyWith(curriculo: atualizado);
   }
 }
 

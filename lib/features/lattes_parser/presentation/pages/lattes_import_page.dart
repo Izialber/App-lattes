@@ -7,15 +7,12 @@ import '../../../cloud_sync/presentation/providers/auth_providers.dart';
 import '../providers/lattes_providers.dart';
 import '../widgets/curriculo_list_view.dart';
 
-/// Tela inicial do fluxo — primeira fatia do app funcional de ponta a ponta
-/// no navegador: botão de seleção de arquivo (usa `file_picker`, funciona
-/// igual em desktop e mobile) -> parser 100% local (já pronto e testado) ->
+/// Tela inicial do fluxo: botão de seleção de arquivo (usa `file_picker`,
+/// funciona igual em desktop e mobile) -> parser 100% local (sem LLM) ->
 /// lista estruturada do currículo, com a confirmação humana da ambiguidade
-/// de "vínculo em andamento" (ver DECISOES.md).
-///
-/// Drag&drop no desktop e câmera/upload multi-seleção (módulo 2) continuam
-/// pendentes — esta tela cobre apenas o módulo 1, que é o único com
-/// implementação completa nesta entrega.
+/// de "vínculo em andamento" (ver DECISOES.md). O currículo importado é
+/// persistido (`CurriculoLocalStore`) — sobrevive a reload de aba, pré-
+/// requisito do módulo de comprovantes (ver `comprovantes_lattes_page.dart`).
 class LattesImportPage extends ConsumerWidget {
   const LattesImportPage({super.key});
 
@@ -29,9 +26,9 @@ class LattesImportPage extends ConsumerWidget {
         actions: [
           if (estado.curriculo != null)
             IconButton(
-              tooltip: 'Capturar certificados',
+              tooltip: 'Anexar comprovantes',
               icon: const Icon(Icons.add_photo_alternate_outlined),
-              onPressed: () => context.go(AppRoutes.capturarCertificados),
+              onPressed: () => context.go(AppRoutes.comprovantes),
             ),
           // Sempre visível (não só depois de capturar certificados) — é o
           // único jeito de chegar na configuração de chave de API, então
