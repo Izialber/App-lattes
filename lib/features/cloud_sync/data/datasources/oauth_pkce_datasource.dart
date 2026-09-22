@@ -116,6 +116,8 @@ class OauthPkceDatasource {
       config.tokenEndpoint,
       data: {
         'client_id': config.clientId,
+        if (config.clientSecret != null && config.clientSecret!.isNotEmpty)
+          'client_secret': config.clientSecret,
         'code': code,
         'code_verifier': verifier,
         'redirect_uri': OAuthConfig.redirectUri,
@@ -137,6 +139,8 @@ class OauthPkceDatasource {
       config.tokenEndpoint,
       data: {
         'client_id': config.clientId,
+        if (config.clientSecret != null && config.clientSecret!.isNotEmpty)
+          'client_secret': config.clientSecret,
         'refresh_token': refreshToken,
         'grant_type': 'refresh_token',
       },

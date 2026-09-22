@@ -617,3 +617,52 @@ Achado não corrigido (severidade menor, escolha deliberada):
 
 4 testes novos cobrindo os achados corrigidos (validação de string vazia, limpeza de
 `mensagemErro` em sucesso de extração/atualização de status/upload). 119 testes no total.
+
+## Primeiro teste ao vivo do login com Google — bug real encontrado e corrigido (2026-09-22)
+
+Testado o fluxo "Continuar com Google" pela primeira vez desde que foi implementado (bloqueado
+a sessão inteira anterior — ver entradas de 2026-09). Via Claude em Chrome: logout, "Continuar
+com Google", account chooser, aviso de app não verificado (esperado, app em modo Testing), tela
+de consentimento (escopo `drive.file`) — tudo funcionou até a troca do `code` por tokens, que
+falhou com HTTP 400 (`DioException [bad response]`).
+
+**Causa raiz**: `OauthPkceDatasource.trocarCodePorTokens`/`renovarComRefreshToken` não enviavam
+`client_secret` na requisição ao `token_endpoint` do Google. A suposição original (documentada no
+pubspec e no `oauth_config.dart` antigo: "Authorization Code + PKCE, sem client secret") está
+correta para a maioria dos provedores (Auth0, Okta, etc. suportam client público sem secret), mas
+**o Google não segue essa parte do espírito da RFC 7636** — exige `client_secret` na troca de
+token mesmo com PKCE, para todo Client ID do tipo "Aplicativo da Web". Os únicos tipos de Client
+ID do Google que dispensam secret ("Desktop app", "TVs and Limited Input devices") só aceitam
+`redirect_uri` do tipo `http://localhost`/scheme customizado — incompatíveis com um PWA hospedado
+em domínio próprio (`https://izialber.com.br/...`). Ou seja: não havia como configurar o Client ID
+de um jeito que evitasse essa exigência, dado que o app precisa do redirect no próprio domínio.
+
+**Correção**: gerado um novo Client secret no Google Cloud Console (o original, criado junto com
+o Client ID em 2026-09-16, nunca tinha sido visualizado — a Console do Google só mostra o valor
+uma vez, na criação; como ninguém tinha copiado, ficou irrecuperável, por isso "novo" e não
+"recuperado"). Enviado em `client_secret` nas duas chamadas ao `token_endpoint` (troca inicial e
+renovação via refresh_token), lido de `OAuthConfig.googleClientSecret`.
+
+**Ajuste de segurança no meio do caminho**: a primeira tentativa colocou o secret como literal em
+`oauth_config.dart` — o `git push` foi bloqueado pelo classificador de segurança do Claude Code
+(corretamente: este repositório é público no GitHub, e GOCSPX- é um padrão que scanners
+automáticos de segredo detectam; commitar em texto puro o exporia permanentemente no histórico,
+não só no bundle compilado). Corrigido para `String.fromEnvironment('GOOGLE_OAUTH_CLIENT_SECRET')`
+— o valor entra via `--dart-define` no comando de build do Cloudflare Pages, configurado como
+variável de ambiente no próprio painel do Cloudflare, nunca commitado.
+
+**Trade-off aceito conscientemente, documentado no código**: como o app não tem backend, esse
+secret ainda acaba visível no bundle JS público depois de compilado (visível a qualquer um que
+inspecionar o `main.dart.js`) — não é um "segredo" de verdade neste contexto de SPA, mas pelo
+menos não fica em texto puro no histórico do git de um repo público. Mitigado também por: (1) escopo
+mínimo `drive.file` (só arquivos criados pelo próprio app, nunca o Drive inteiro do usuário); (2)
+PKCE — o secret sozinho não basta, precisa também do `code` de autorização (de uso único, expira
+em minutos) e do `code_verifier` correto, que nunca saem do navegador de quem fez o login; (3) app
+OAuth em modo "Testing", com o próprio usuário como único test user cadastrado — ninguém mais
+consegue completar o fluxo de autorização mesmo tendo o secret. Alternativa mais correta
+(proxy server-side para a troca de token, mantendo o secret fora do navegador) foi considerada e
+descartada por ora — decisão explícita do usuário de priorizar a rota mais rápida para um app
+pessoal de um usuário só; documentado aqui para reconsiderar se o app for publicado para mais
+gente no futuro.
+
+Correção aplicada; reteste ao vivo depois do deploy ainda pendente no momento desta entrada.
