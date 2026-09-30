@@ -11,6 +11,26 @@ itens dentro — decisão explícita do usuário); rótulo textual "Enviando X d
 a sincronização manual, em vez de só um spinner; e avisos de formato/tamanho no botão de anexar,
 com um limite real de 15MB que antes não existia.
 
+**Códigos de convite de uso único + página de administração — primeiro backend compartilhado do
+projeto.** Usuário quis controlar quem consegue entrar no app: as duas portas de login (Google e
+e-mail/senha) agora exigem um código de convite de uso único, gerido numa página de admin nova
+(`/admin/codigos`, acesso só pra izialber@gmail.com via uma conta Firebase dedicada). Usa o
+Firestore do mesmo projeto Firebase já existente — decisão tomada em modo de planejamento, com
+perguntas explícitas ao usuário sobre escopo (as duas portas ou só uma) e nível de segurança
+aceito pro lado Google (que não passa pelo Firebase Auth, então não dá pra verificar
+criptograficamente a identidade sem uma Cloud Function paga — o usuário aceitou a versão simples
+e gratuita). As regras do Firestore fecham a maior parte dessa brecha mesmo assim: só é possível
+"lembrar" um e-mail Google como autorizado se ele já tiver resgatado de verdade um código válido
+e não usado antes (ver DECISOES.md para o raciocínio completo). **Ainda não testado ao vivo**:
+depende de 3 passos manuais no Firebase Console (ativar Firestore, publicar as regras de
+`firestore.rules`, criar a conta admin) que ficam fora do alcance desta sessão sem Firebase
+CLI/credenciais — documentados passo a passo no DECISOES.md.
+
+**Bug achado ao vivo ao testar a importação de um XML real**: "Formação complementar" (cursos de
+curta duração) aparecia misturada dentro da seção "Formação acadêmica" — o parser já lia as duas
+seções certo do XML, só a exibição/categorização achatava as duas juntas. Corrigido: vira seção
+própria (tela de importação e de Comprovantes), com subpasta própria no Drive automaticamente.
+
 # Resumo da entrega (Módulos 1-4 têm implementação real; nenhum testado ao vivo ainda)
 
 **Login "Continuar com Google" testado ao vivo pela primeira vez, e confirmado funcionando** —

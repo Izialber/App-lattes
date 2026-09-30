@@ -87,6 +87,21 @@ class AuthRepositoryImpl implements AuthRepository {
       // passa a devolver o provider junto da resposta.
       final token = _tokenDoResponse(CloudProvider.googleDrive, data);
       await _persistirToken(token);
+
+      // Gate de código de convite (ver DECISOES.md) depende de saber QUAL
+      // e-mail Google logou — sem confirmar isso aqui, não dá pra checar
+      // `acessos_autorizados` depois. Falha aqui é tratada como falha de
+      // login inteira (não dá pra simplesmente deixar passar sem e-mail).
+      final idToken = data['id_token'] as String?;
+      final email = idToken == null ? null : await _pkceDatasource.confirmarEmailDoIdToken(idToken);
+      if (email == null) {
+        return const Left(AuthFailure(
+          'Não foi possível confirmar seu e-mail do Google — tente novamente.',
+          requiresReauth: true,
+        ));
+      }
+      await _secureStorage.write(key: SecureStorageKeys.googleEmail, value: email);
+
       return Right(token);
     } catch (e) {
       return Left(AuthFailure('Falha ao trocar o código de autorização por tokens: $e', requiresReauth: true));
@@ -134,5 +149,8 @@ class AuthRepositoryImpl implements AuthRepository {
     await _secureStorage.delete(key: keys.access);
     await _secureStorage.delete(key: keys.refresh);
     await _secureStorage.delete(key: '${keys.access}_expira_em');
+    if (provider == CloudProvider.googleDrive) {
+      await _secureStorage.delete(key: SecureStorageKeys.googleEmail);
+    }
   }
 }

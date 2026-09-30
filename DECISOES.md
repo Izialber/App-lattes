@@ -933,3 +933,128 @@ até 15MB"); sincronização de 4 arquivos novos confirmada funcionando (todos p
 poucos arquivos pequenos e rede rápida, o processo terminou rápido demais entre o clique e a
 próxima screenshot. Lógica revisada como código, consistente com o padrão já confirmado em outros
 indicadores de status desta mesma tela.
+
+## Códigos de convite de uso único + página de administração (2026-09-30)
+
+Usuário pediu: controlar quem consegue entrar no app, exigindo um código de convite de uso único
+pra criar acesso, com uma página só dele pra gerar/gerenciar esses códigos. Decidido em modo de
+planejamento (`EnterPlanMode`), com duas perguntas explícitas ao usuário antes de escrever
+qualquer código, dado o tamanho da mudança — ver raciocínio completo abaixo.
+
+**Isto é o primeiro backend compartilhado do projeto.** Até aqui o app era inteiramente estático:
+Google OAuth direto do navegador (PKCE, sem servidor) + Firebase Auth só pra autenticação
+(login por e-mail/senha), nenhum banco de dados compartilhado — documentado deliberadamente assim
+desde o início (`auth_providers.dart`: "Não existe conta própria do app com backend
+compartilhado"). Códigos de uso único de verdade (não reaproveitáveis, geridos remotamente) exigem
+um banco compartilhado — usado o Firestore do mesmo projeto Firebase que já existia
+(`certificados-lattes`), sem introduzir nenhum provedor novo.
+
+### Decisões confirmadas com o usuário
+
+1. **As duas portas de entrada precisam do código** — tanto "Continuar com Google" quanto "Criar
+   conta" por e-mail/senha. O usuário escolheu isso sabendo que a porta Google é mais fraca de
+   proteger (ver próximo ponto).
+2. **Gate do login Google: versão simples e gratuita, sem Cloud Function.** O login Google é um
+   fluxo OAuth PKCE que não passa pelo Firebase Auth — então o Firestore não tem como confirmar
+   criptograficamente QUE e-mail está de fato resgatando um código (`request.auth` fica nulo pra
+   esse fluxo). A alternativa robusta (Cloud Function verificando o `id_token` no servidor)
+   exigiria colocar o projeto Firebase no plano pago Blaze e montar uma pipeline de deploy nova
+   (Node.js/Firebase CLI) inexistente hoje. O usuário aceitou a versão sem Cloud Function.
+   **Mitigação aplicada nas regras do Firestore, mais forte do que a apresentada originalmente na
+   pergunta**: a criação de `acessos_autorizados/{email}` (o registro que libera o Google sem
+   pedir código de novo) só é permitida se já existir um `codigos/{algumCodigo}` com `usado: true`
+   e `usadoPara` batendo com esse e-mail exato — e a ÚNICA forma de um código virar `usado: true`
+   é a transição controlada (`usado:false -> true`, mais nada), que exige o código existir e
+   ainda não ter sido usado. Ou seja: a brecha real ficou bem mais estreita do que "qualquer um
+   pode se auto-autorizar sem código nenhum" — sobra só "alguém que JÁ tem um código válido e não
+   usado em mãos pode resgatá-lo sob um e-mail arbitrário, sem prova de que aquele e-mail é
+   mesmo dele" (o código em si continua sendo o controle real de acesso). Ver `firestore.rules`
+   pro texto completo e comentado.
+3. **Admin = izialber@gmail.com, via conta de e-mail/senha DEDICADA no Firebase** — não a sessão
+   Google normal do resto do app. Necessário pela mesma razão do ponto 2: só uma sessão Firebase
+   Auth dá ao Firestore uma identidade verificável (`request.auth.token.email`) pras regras
+   confiarem. A conta admin precisa ser criada manualmente no Firebase Console (não pelo
+   formulário de "Criar conta" do próprio app) — senão vira um problema do ovo e da galinha
+   (criar conta exige código, e não existe nenhum código até o admin existir).
+
+### O que foi implementado
+
+- **Novo módulo `lib/features/access_control/`** (Clean Architecture, mesmo padrão do resto do
+  projeto): `CodigoAcesso` (entidade), `CodigoAcessoRepository`/`Impl` (Firestore direto, sem
+  camada de use case — cada método já é uma operação atômica sem lógica de negócio adicional, um
+  wrapper seria só passthrough), `AccessCodeFailure` (nova em `core/error/failures.dart`).
+  `resgatarCodigo` usa `FirebaseFirestore.runTransaction` — garante que dois resgates simultâneos
+  do mesmo código não passem os dois.
+- **Fluxo e-mail/senha** (`login_page.dart` + `AuthController.criarContaComEmailSenha`): novo
+  campo "Código de convite", só visível em modo "Criar conta". Ordem: resgata o código PRIMEIRO,
+  só then cria a conta no Firebase — se a criação falhar depois (e-mail já em uso, senha fraca),
+  o código já foi queimado; aceito, admin gera outro.
+- **Fluxo Google**: o `id_token` que o Google já devolvia na troca de code por token (escopo já
+  pedia `openid email`) era descartado — passou a ser usado. `OauthPkceDatasource.
+  confirmarEmailDoIdToken` chama `GET https://oauth2.googleapis.com/tokeninfo` (endpoint público
+  do próprio Google, mesmo domínio já liberado na CSP) em vez de só decodificar o JWT sem checar.
+  E-mail persistido em `SecureStorageKeys.googleEmail` — `AuthController.build()` reusa esse
+  valor salvo a cada abertura do app (a renovação via `refresh_token` não devolve `id_token`
+  novo). Novo estado `AuthPendenteCodigo(email)`; nova rota pública `/login/codigo`
+  (`CodigoPendentePage`) — única tela alcançável nesse estado, com campo de código e botão "Sair"
+  pra tentar outra conta Google.
+- **Página de admin** (`/admin/codigos`, `AdminCodigosPage`): gate PRÓPRIO contra
+  `FirebaseAuth.instance.currentUser?.email == AdminConfig.email`, independente do `AuthState`
+  geral do app (pela razão do ponto 3 acima) — mostra um mini-login e-mail/senha se a sessão
+  Firebase atual não for a do admin. Lista códigos (status, rótulo, criado em, usado por/em),
+  botão "Gerar código" (rótulo opcional) e revogar (só não-usados). Ícone de atalho (`Icons.
+  admin_panel_settings_outlined`) na AppBar de `/importar-lattes`, visível só quando
+  `AuthState.email == AdminConfig.email` (reaproveita o e-mail agora disponível também pro login
+  Google, ver acima) — não aparece pra ninguém mais.
+- `web/index.html`: CSP ganhou `firestore.googleapis.com` em `connect-src` — mesmo padrão de
+  problema silencioso já visto com as outras chamadas do Firebase nesta sessão (erro de rede
+  genérico, não CORS explícito, se esquecido).
+
+**Fora de escopo, deliberado**: revogar um código já usado (não faz sentido — a pessoa já tem
+acesso); expiração automática de códigos; testes automatizados desta feature (`AuthController`/
+`CodigoAcessoRepositoryImpl` — camada de controller de presentation já não tem testes em nenhum
+outro módulo do projeto, e mockar `cloud_firestore` exigiria uma dependência nova
+`fake_cloud_firestore` só pra isso; revisado como texto, mesma limitação de sempre sem SDK
+Flutter neste ambiente).
+
+### Passos manuais pendentes (fora do alcance desta sessão — sem Firebase CLI/credenciais aqui)
+
+Antes disto funcionar de ponta a ponta, no Firebase Console do projeto `certificados-lattes`:
+1. Ativar o Cloud Firestore (modo nativo, escolher região).
+2. Colar o conteúdo de `firestore.rules` (raiz do repo) na aba Rules — ou `firebase deploy
+   --only firestore:rules` se tiver a CLI instalada localmente (`firebase.json`/`.firebaserc`
+   já versionados, prontos pra isso).
+3. Criar manualmente a conta admin em Authentication → Users → Add user (izialber@gmail.com +
+   senha à escolha) — pelo problema do ovo e da galinha explicado no ponto 3 acima.
+
+Ainda não testado ao vivo — depende desses 3 passos manuais serem feitos primeiro.
+
+## Bug achado ao vivo: Formação complementar misturada com Formação acadêmica (2026-09-30)
+
+Usuário reportou, testando a importação de um XML real: "a formação acadêmica titulação está
+junta com formação complementar e deveria estar separado". Confirmado no código:
+`LattesXmlParser._parseCursos` já lê as duas seções do XML corretamente como coisas diferentes
+(`FORMACAO-ACADEMICA-TITULACAO` em `DADOS-GERAIS` vs. `FORMACAO-COMPLEMENTAR-CURSO-DE-CURTA-
+DURACAO` em `DADOS-COMPLEMENTARES`), mas achatava as duas no mesmo campo `CurriculoLattes.
+cursos` (distinguidas só pelo `Curso.nivel == NivelCurso.cursoCurta`) — e tanto
+`CurriculoListView` (tela de importação) quanto `mapear_entradas_lattes.dart` (tela de
+Comprovantes) tratavam esse campo como UMA seção só de "Formação acadêmica".
+
+**Fix**: separado por `nivel` nos dois lugares que exibem/categorizam isso — `CurriculoListView`
+ganhou uma segunda seção condicional "Formação complementar" (só aparece se não vazia, mesmo
+padrão de Orientações/Produção técnica); `CategoriaEntradaLattes` ganhou um valor novo
+`formacaoComplementar` (rótulo "Formação complementar", posicionado logo depois de `curso` na
+declaração do enum — controla a ordem das seções recolhíveis em Comprovantes e vira subpasta
+própria no Drive automaticamente, sem mudança adicional). `mapear_entradas_lattes.dart` agora
+itera `curriculo.cursos` duas vezes, filtrando por `nivel`, cada uma gerando o id pela sua
+categoria final correta.
+
+**Efeito colateral aceito**: como o id de cada entrada é um hash que inclui a categoria (ver
+`gerarIdEntrada`), qualquer comprovante já anexado a um curso de curta duração ANTES deste fix
+fica "órfão" na próxima reimportação do XML (mecanismo que já existia, mesmo padrão de qualquer
+mudança de campo identificador — o arquivo não se perde, só desvincula e aparece na seção de
+órfãos). Baixo risco: a feature de comprovantes é recente nesta mesma sessão, pouco tempo de uso
+real antes do fix.
+
+Teste novo cobrindo a separação em `entrada_lattes_ref_test.dart` (domínio puro, sem depender de
+SDK Flutter). Ainda não testado ao vivo com um XML real.

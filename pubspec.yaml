@@ -55,6 +55,11 @@ dependencies:
   firebase_core: ^3.6.0           # [web ok]
   firebase_auth: ^5.3.1           # [web ok]
 
+  # --- Códigos de convite de uso único (admin + gate de acesso) -------------
+  # Primeiro backend compartilhado do projeto (ver DECISOES.md, "Códigos de
+  # convite"). Mesma geração das outras deps do Firebase acima.
+  cloud_firestore: ^5.4.0         # [web ok]
+
   app_links: ^6.3.2               # [web c/ ressalva Safari] captura o retorno do redirect;
                                    # no Safari iOS so funciona de forma confiavel quando o
                                    # PWA esta instalado na tela de inicio (ver RISCOS.md)

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/access_control/presentation/pages/admin_codigos_page.dart';
+import '../../features/access_control/presentation/pages/codigo_pendente_page.dart';
 import '../../features/certificate_capture/presentation/pages/certificate_capture_page.dart';
 import '../../features/cloud_sync/presentation/pages/login_page.dart';
 import '../../features/cloud_sync/presentation/pages/oauth_callback_page.dart';
@@ -29,6 +31,16 @@ abstract class AppRoutes {
   static const dossieNovo = '/dossie/novo';
   static const dossieChecklist = '/dossie/:dossieId/checklist';
   static const dossieCompilar = '/dossie/:dossieId/compilar';
+
+  /// Login Google concluído, mas o e-mail ainda não resgatou um código de
+  /// convite — única rota alcançável nesse estado intermediário (ver
+  /// [AuthPendenteCodigo], DECISOES.md).
+  static const codigoPendente = '/login/codigo';
+
+  /// Gestão de códigos de convite — gate próprio dentro da página (Firebase
+  /// Auth, independente do `AuthController` do resto do app, ver
+  /// DECISOES.md), não pelo `redirect` do router.
+  static const adminCodigos = '/admin/codigos';
 
   // Rota especial: destino do redirect OAuth2 (Google/Microsoft). Não
   // renderiza UI própria — apenas processa `code`/`state` da query string via
@@ -67,9 +79,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         loading: () => null,
         error: (_, __) => indoParaRotaPublica ? null : AppRoutes.login,
         data: (value) {
+          // Login Google concluído, mas falta resgatar o código de convite
+          // (ver DECISOES.md) — trava em /login/codigo até isso resolver,
+          // antes mesmo da checagem geral de autenticado/não-autenticado.
+          if (value is AuthPendenteCodigo) {
+            return state.matchedLocation == AppRoutes.codigoPendente
+                ? null
+                : AppRoutes.codigoPendente;
+          }
           final autenticado = value is AuthAuthenticated;
           if (!autenticado && !indoParaRotaPublica) return AppRoutes.login;
-          if (autenticado && state.matchedLocation == AppRoutes.login) {
+          if (autenticado &&
+              (state.matchedLocation == AppRoutes.login ||
+                  state.matchedLocation == AppRoutes.codigoPendente)) {
             return AppRoutes.importarLattes;
           }
           return null;
@@ -116,6 +138,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => DossieCompilePage(
           dossieId: state.pathParameters['dossieId']!,
         ),
+      ),
+      GoRoute(
+        path: AppRoutes.codigoPendente,
+        builder: (context, state) => const CodigoPendentePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminCodigos,
+        builder: (context, state) => const AdminCodigosPage(),
       ),
     ],
   );

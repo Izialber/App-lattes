@@ -128,6 +128,26 @@ class OauthPkceDatasource {
     return response.data!;
   }
 
+  /// Confirma o e-mail do `id_token` recebido na troca de code por tokens,
+  /// chamando o endpoint público do próprio Google em vez de só decodificar
+  /// o JWT sem checar — usado pelo gate de código de convite (ver
+  /// DECISOES.md, "Códigos de convite"), sem nenhum papel na troca de
+  /// tokens do Drive em si. Mesmo domínio `oauth2.googleapis.com` já
+  /// liberado na CSP pro resto do fluxo. `null` em qualquer falha (id_token
+  /// ausente/expirado/inválido) — quem chama trata como e-mail não
+  /// confirmado, nunca assume acesso liberado nesse caso.
+  Future<String?> confirmarEmailDoIdToken(String idToken) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        'https://oauth2.googleapis.com/tokeninfo',
+        queryParameters: {'id_token': idToken},
+      );
+      return response.data?['email'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>> renovarComRefreshToken({
     required CloudProvider provider,
     required String refreshToken,

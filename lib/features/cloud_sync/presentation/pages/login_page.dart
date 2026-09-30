@@ -24,6 +24,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
+  final _codigoController = TextEditingController();
 
   _ModoFormulario _modo = _ModoFormulario.entrar;
   bool _enviando = false;
@@ -34,6 +35,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void dispose() {
     _emailController.dispose();
     _senhaController.dispose();
+    _codigoController.dispose();
     super.dispose();
   }
 
@@ -52,7 +54,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final erro = _modo == _ModoFormulario.entrar
         ? await controller.entrarComEmailSenha(email: email, senha: senha)
-        : await controller.criarContaComEmailSenha(email: email, senha: senha);
+        : await controller.criarContaComEmailSenha(
+            email: email,
+            senha: senha,
+            codigo: _codigoController.text.trim(),
+          );
 
     if (!mounted) return;
     setState(() {
@@ -214,8 +220,28 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 }
                                 return null;
                               },
-                              onFieldSubmitted: (_) => _enviarFormulario(),
+                              onFieldSubmitted: (_) =>
+                                  _modo == _ModoFormulario.entrar ? _enviarFormulario() : null,
                             ),
+                            if (_modo == _ModoFormulario.criarConta) ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _codigoController,
+                                enabled: !_enviando,
+                                textCapitalization: TextCapitalization.characters,
+                                decoration: const InputDecoration(
+                                  labelText: 'Código de convite',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (valor) {
+                                  if (valor == null || valor.trim().isEmpty) {
+                                    return 'Digite o código de convite que você recebeu.';
+                                  }
+                                  return null;
+                                },
+                                onFieldSubmitted: (_) => _enviarFormulario(),
+                              ),
+                            ],
                             if (_erroFormulario != null) ...[
                               const SizedBox(height: 12),
                               _caixaMensagem(context, _erroFormulario!, erro: true),

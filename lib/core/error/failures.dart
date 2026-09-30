@@ -84,3 +84,10 @@ class LocalStorageFailure extends Failure {
   @override
   List<Object?> get props => [message, likelyEvicted];
 }
+
+/// Falha ao resgatar/gerenciar um código de convite (Firestore) — código
+/// inválido, já usado, ou falha de permissão/rede ao ler/escrever
+/// `codigos`/`acessos_autorizados` (ver DECISOES.md, "Códigos de convite").
+class AccessCodeFailure extends Failure {
+  const AccessCodeFailure(super.message);
+}

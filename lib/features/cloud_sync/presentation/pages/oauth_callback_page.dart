@@ -30,6 +30,8 @@ class _OAuthCallbackPageState extends ConsumerState<OAuthCallbackPage> {
     final estado = ref.read(authControllerProvider).valueOrNull;
     if (estado is AuthAuthenticated) {
       context.go(AppRoutes.importarLattes);
+    } else if (estado is AuthPendenteCodigo) {
+      context.go(AppRoutes.codigoPendente);
     } else {
       context.go(AppRoutes.login);
     }

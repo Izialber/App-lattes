@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// Regras de segurança dos códigos de convite de uso único (ver DECISOES.md,
+// "Códigos de convite" — inclui a justificativa completa de cada decisão
+// abaixo). NÃO precisam de Cloud Function: todo o "gate" fica aqui.
+//
+// Reforço importante em relação à versão mais simples originalmente
+// desenhada: a criação de `acessos_autorizados/{email}` (que é o que libera
+// o login "Continuar com Google" sem pedir código de novo) exige que já
+// exista um `codigos/{algumCodigo}` com `usado: true` e `usadoPara`
+// batendo exatamente com esse e-mail. Como a ÚNICA forma de um código
+// virar `usado: true` é através da transição controlada abaixo (que exige
+// o código existir e ainda estar `usado: false`), isso fecha a brecha de
+// "criar uma autorização sem nunca ter passado por um código real" — só
+// sobra a limitação MENOR, já aceita explicitamente: sem uma sessão
+// Firebase Auth verificada pro login Google, não dá pra provar
+// criptograficamente QUE e-mail de verdade está resgatando o código (só
+// que ALGUÉM com um código válido e não usado resgatou).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'izialber@gmail.com';
+    }
+
+    match /codigos/{codigo} {
+      // Leitura de UM código específico (por quem já sabe a string) é
+      // pública de propósito — é assim que o app confere se um código
+      // existe antes de tentar resgatar. `list` (enumerar todos) fica só
+      // pro admin, senão dava pra "descobrir" códigos válidos por força
+      // bruta olhando a coleção inteira.
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, delete: if isAdmin();
+
+      // Resgate: qualquer um pode marcar `usado: false -> true`, MAS só
+      // essa transição exata — nenhum outro campo pode mudar, e só
+      // funciona uma vez (depois de `usado: true`, a mesma condição não
+      // bate mais pra ninguém, nem pro próprio admin tentar "desfazer").
+      allow update: if isAdmin() || (
+        resource.data.usado == false &&
+        request.resource.data.usado == true &&
+        request.resource.data.usadoPara is string &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['usado', 'usadoEm', 'usadoPara'])
+      );
+    }
+
+    match /acessos_autorizados/{email} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow update, delete: if isAdmin();
+
+      // Só pode ser criado referenciando um código que JÁ está marcado
+      // `usado: true` com `usadoPara` batendo com este mesmo e-mail — ou
+      // seja, só depois de um resgate real e bem-sucedido (ver comentário
+      // no topo do arquivo).
+      allow create: if
+        request.resource.data.email == email &&
+        request.resource.data.codigoUsado is string &&
+        exists(/databases/$(database)/documents/codigos/$(request.resource.data.codigoUsado)) &&
+        get(/databases/$(database)/documents/codigos/$(request.resource.data.codigoUsado)).data.usado == true &&
+        get(/databases/$(database)/documents/codigos/$(request.resource.data.codigoUsado)).data.usadoPara == email;
+    }
+  }
+}

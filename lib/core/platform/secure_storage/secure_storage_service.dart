@@ -18,6 +18,12 @@ class SecureStorageKeys {
 
   static const googleAccessToken = 'google_access_token';
   static const googleRefreshToken = 'google_refresh_token';
+
+  /// E-mail decodificado/confirmado do `id_token` do login Google — usado
+  /// só pelo gate de código de convite (`acessos_autorizados/{email}` no
+  /// Firestore, ver DECISOES.md), não pela troca de tokens em si. Persistido
+  /// porque a renovação via `refresh_token` não devolve um `id_token` novo.
+  static const googleEmail = 'google_email';
   static const microsoftAccessToken = 'microsoft_access_token';
   static const microsoftRefreshToken = 'microsoft_refresh_token';
   static const llmApiKeyGemini = 'llm_api_key_gemini';

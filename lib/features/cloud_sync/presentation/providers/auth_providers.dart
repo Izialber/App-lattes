@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/firebase_config.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/platform/secure_storage/secure_storage_service.dart';
+import '../../../access_control/presentation/providers/codigo_acesso_providers.dart';
 import '../../data/datasources/oauth_pkce_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/entities/cloud_provider.dart';
@@ -34,6 +36,15 @@ class AuthAuthenticated extends AuthState {
 class AuthUnauthenticated extends AuthState {
   final String? erro;
   const AuthUnauthenticated({this.erro});
+}
+
+/// Login "Continuar com Google" concluído (tokens de Drive já válidos), mas
+/// este e-mail ainda não resgatou um código de convite — ver DECISOES.md,
+/// "Códigos de convite". Estado intermediário: `/login/codigo` é a única
+/// tela alcançável enquanto isto for verdade (ver `app_router.dart`).
+class AuthPendenteCodigo extends AuthState {
+  final String email;
+  const AuthPendenteCodigo(this.email);
 }
 
 final oauthPkceDatasourceProvider = Provider((ref) => OauthPkceDatasource());
@@ -101,9 +112,29 @@ class AuthController extends AsyncNotifier<AuthState> {
 
     final repositorio = ref.watch(authRepositoryProvider);
     final resultado = await repositorio.obterTokenValido(_providerPrincipal);
-    return resultado.match(
-      (falha) => const AuthUnauthenticated(),
-      (token) => const AuthAuthenticated(metodo: MetodoLogin.google, cloudProvider: _providerPrincipal),
+    if (resultado.isLeft()) {
+      return const AuthUnauthenticated();
+    }
+    return _resolverEstadoGoogle();
+  }
+
+  /// Token de Drive válido confirmado — falta só checar o gate de código de
+  /// convite (ver DECISOES.md). `googleEmail` é escrito por
+  /// `AuthRepositoryImpl.tratarRetornoRedirect` no momento do login; se
+  /// ainda não existir (sessão de antes desta feature existir), força um
+  /// novo login em vez de assumir acesso liberado.
+  Future<AuthState> _resolverEstadoGoogle() async {
+    final email = await ref.read(secureStorageServiceProvider).read(key: SecureStorageKeys.googleEmail);
+    if (email == null) {
+      return const AuthUnauthenticated();
+    }
+
+    final autorizado = await ref.read(codigoAcessoRepositoryProvider).emailAutorizado(email);
+    return autorizado.match(
+      (falha) => AuthUnauthenticated(erro: falha.message),
+      (jaAutorizado) => jaAutorizado
+          ? AuthAuthenticated(metodo: MetodoLogin.google, cloudProvider: _providerPrincipal, email: email)
+          : AuthPendenteCodigo(email),
     );
   }
 
@@ -124,10 +155,12 @@ class AuthController extends AsyncNotifier<AuthState> {
     state = const AsyncLoading();
     final repositorio = ref.read(authRepositoryProvider);
     final resultado = await repositorio.tratarRetornoRedirect();
-    state = AsyncData(resultado.match(
-      (falha) => AuthUnauthenticated(erro: falha.message),
-      (token) => const AuthAuthenticated(metodo: MetodoLogin.google, cloudProvider: _providerPrincipal),
-    ));
+    final erro = resultado.match((falha) => falha.message, (_) => null);
+    if (erro != null) {
+      state = AsyncData(AuthUnauthenticated(erro: erro));
+      return;
+    }
+    state = AsyncData(await _resolverEstadoGoogle());
   }
 
   /// Retorna `null` em caso de sucesso (o listener de [build] já atualiza o
@@ -141,13 +174,54 @@ class AuthController extends AsyncNotifier<AuthState> {
     }
   }
 
-  Future<String?> criarContaComEmailSenha({required String email, required String senha}) async {
+  /// Resgata o código PRIMEIRO, só then cria a conta no Firebase — se a
+  /// criação falhar depois (e-mail já em uso, senha fraca), o código já foi
+  /// queimado; aceito (admin gera outro, ver DECISOES.md, "Códigos de
+  /// convite"). A ordem inversa arriscaria uma conta criada sem nunca ter
+  /// passado por um código válido, caso o resgate falhasse depois.
+  Future<String?> criarContaComEmailSenha({
+    required String email,
+    required String senha,
+    required String codigo,
+  }) async {
+    final resgate = await ref
+        .read(codigoAcessoRepositoryProvider)
+        .resgatarCodigo(codigo: codigo, identificador: email);
+    final erroCodigo = resgate.match((falha) => falha.message, (_) => null);
+    if (erroCodigo != null) return erroCodigo;
+
     try {
       await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: senha);
       return null;
     } on FirebaseAuthException catch (e) {
       return _mensagemErroFirebase(e);
     }
+  }
+
+  /// Chamado pela tela de código pendente (`/login/codigo`) — só aplicável
+  /// quando o login Google já terminou mas este e-mail ainda não tinha
+  /// código resgatado (ver [AuthPendenteCodigo]).
+  Future<String?> resgatarCodigoGoogle(String codigo) async {
+    final atual = state.valueOrNull;
+    if (atual is! AuthPendenteCodigo) {
+      return 'Nenhum login pendente de código.';
+    }
+
+    final resultado = await ref
+        .read(codigoAcessoRepositoryProvider)
+        .resgatarCodigo(codigo: codigo, identificador: atual.email);
+
+    return resultado.match(
+      (falha) => falha.message,
+      (_) {
+        state = AsyncData(AuthAuthenticated(
+          metodo: MetodoLogin.google,
+          cloudProvider: _providerPrincipal,
+          email: atual.email,
+        ));
+        return null;
+      },
+    );
   }
 
   Future<String?> enviarEmailRecuperacaoSenha(String email) async {

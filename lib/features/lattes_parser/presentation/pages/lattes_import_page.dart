@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/config/admin_config.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../cloud_sync/presentation/providers/auth_providers.dart';
 import '../providers/lattes_providers.dart';
@@ -19,6 +20,9 @@ class LattesImportPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(lattesImportControllerProvider);
+    final authState = ref.watch(authControllerProvider).valueOrNull;
+    final ehAdmin =
+        authState is AuthAuthenticated && authState.email?.toLowerCase() == AdminConfig.email;
 
     return Scaffold(
       appBar: AppBar(
@@ -29,6 +33,15 @@ class LattesImportPage extends ConsumerWidget {
               tooltip: 'Anexar comprovantes',
               icon: const Icon(Icons.add_photo_alternate_outlined),
               onPressed: () => context.go(AppRoutes.comprovantes),
+            ),
+          // Só visível pro admin — reaproveita o e-mail já disponível no
+          // AuthState (agora populado também pro login Google, ver
+          // DECISOES.md) em vez de forçar todo mundo a ver este ícone.
+          if (ehAdmin)
+            IconButton(
+              tooltip: 'Gerenciar códigos de convite',
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              onPressed: () => context.go(AppRoutes.adminCodigos),
             ),
           // Sempre visível (não só depois de capturar certificados) — é o
           // único jeito de chegar na configuração de chave de API, então
