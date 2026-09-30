@@ -89,8 +89,15 @@ class ComprovantesController extends Notifier<ComprovantesState> {
   }
 
   Future<void> _carregarComprovantes() async {
-    final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
-    state = state.copyWith(comprovantes: _agruparPorEntrada(todos));
+    try {
+      final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
+      state = state.copyWith(comprovantes: _agruparPorEntrada(todos));
+    } catch (e) {
+      // Sem isso, uma falha aqui (ex.: registro gravado por uma versão
+      // anterior do schema) virava uma exceção não tratada silenciosa —
+      // achado ao investigar um bug ao vivo (ver DECISOES.md).
+      state = state.copyWith(erro: 'Falha ao carregar os comprovantes já anexados: $e');
+    }
   }
 
   Map<String, List<ComprovanteEntrada>> _agruparPorEntrada(List<ComprovanteEntrada> todos) {

@@ -51,30 +51,40 @@ class ComprovantesSyncController extends Notifier<ComprovantesSyncState> {
   void limparErro() => state = state.copyWith(limparErro: true);
 
   Future<void> _retomarPendentes() async {
-    final fila = ref.read(uploadQueueLocalStoreProvider).listarTodas();
-    final pendentes = fila.where(
-      (t) =>
-          t.subpastaNome != null &&
-          (t.status == UploadStatus.pendente || t.status == UploadStatus.falhaTemporaria),
-    );
-    if (pendentes.isEmpty) return;
+    try {
+      final fila = ref.read(uploadQueueLocalStoreProvider).listarTodas();
+      final pendentes = fila.where(
+        (t) =>
+            t.subpastaNome != null &&
+            (t.status == UploadStatus.pendente || t.status == UploadStatus.falhaTemporaria),
+      );
+      if (pendentes.isEmpty) return;
 
-    state = state.copyWith(sincronizando: true);
-    final atualizadas = await ref.read(processarFilaOfflineProvider).call(pendentes.toList());
-    await _persistirResultadoDaFila(atualizadas);
-    state = state.copyWith(sincronizando: false);
+      state = state.copyWith(sincronizando: true);
+      final atualizadas = await ref.read(processarFilaOfflineProvider).call(pendentes.toList());
+      await _persistirResultadoDaFila(atualizadas);
+      state = state.copyWith(sincronizando: false);
+    } catch (e) {
+      // Sem isso, uma falha aqui virava uma exceção não tratada silenciosa
+      // — achado ao investigar um bug ao vivo (ver DECISOES.md).
+      state = state.copyWith(sincronizando: false, erro: 'Falha ao retomar a fila de envio: $e');
+    }
   }
 
   Future<void> sincronizarTodos() async {
     state = state.copyWith(sincronizando: true, limparErro: true);
 
-    final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
-    final pendentes = todos.where(
-      (c) => c.statusSincronizacao != StatusSincronizacaoComprovante.sincronizado,
-    );
+    try {
+      final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
+      final pendentes = todos.where(
+        (c) => c.statusSincronizacao != StatusSincronizacaoComprovante.sincronizado,
+      );
 
-    for (final comprovante in pendentes) {
-      await _sincronizarUm(comprovante);
+      for (final comprovante in pendentes) {
+        await _sincronizarUm(comprovante);
+      }
+    } catch (e) {
+      state = state.copyWith(erro: 'Falha ao listar comprovantes pendentes: $e');
     }
 
     state = state.copyWith(sincronizando: false);
@@ -82,12 +92,16 @@ class ComprovantesSyncController extends Notifier<ComprovantesSyncState> {
 
   /// Tenta de novo um único comprovante que falhou (botão de retry na UI).
   Future<void> retentarUm(String comprovanteId) async {
-    final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
-    final comprovante = todos.firstWhereOrNull((c) => c.id == comprovanteId);
-    if (comprovante == null) return;
-
     state = state.copyWith(sincronizando: true, limparErro: true);
-    await _sincronizarUm(comprovante);
+    try {
+      final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
+      final comprovante = todos.firstWhereOrNull((c) => c.id == comprovanteId);
+      if (comprovante != null) {
+        await _sincronizarUm(comprovante);
+      }
+    } catch (e) {
+      state = state.copyWith(erro: 'Falha ao tentar sincronizar de novo: $e');
+    }
     state = state.copyWith(sincronizando: false);
   }
 
