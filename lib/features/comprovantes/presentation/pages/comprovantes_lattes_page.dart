@@ -17,11 +17,25 @@ import '../providers/comprovantes_providers.dart';
 /// própria entrada (ver DECISOES.md). Seções e ordem dos itens seguem
 /// exatamente a mesma ordem do XML do Lattes já usada em
 /// `CurriculoListView` — nenhuma reordenação.
-class ComprovantesLattesPage extends ConsumerWidget {
+class ComprovantesLattesPage extends ConsumerStatefulWidget {
   const ComprovantesLattesPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ComprovantesLattesPage> createState() => _ComprovantesLattesPageState();
+}
+
+class _ComprovantesLattesPageState extends ConsumerState<ComprovantesLattesPage> {
+  final _buscaController = TextEditingController();
+  String _busca = '';
+
+  @override
+  void dispose() {
+    _buscaController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final estado = ref.watch(comprovantesControllerProvider);
     final estadoSync = ref.watch(comprovantesSyncControllerProvider);
     final temPendentes = estado.comprovantes.values.expand((l) => l).any(
@@ -80,6 +94,26 @@ class ComprovantesLattesPage extends ConsumerWidget {
               ],
             ),
           if (estado.entradas.isNotEmpty) _cabecalhoProgresso(context, estado),
+          if (estadoSync.sincronizando && estadoSync.totalParaSincronizar > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Enviando ${estadoSync.enviados} de ${estadoSync.totalParaSincronizar} '
+                    'arquivos para o Drive...',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          if (estado.entradas.isNotEmpty) _campoBusca(context),
           Expanded(
             child: estado.entradas.isEmpty
                 ? const Center(
@@ -137,6 +171,43 @@ class ComprovantesLattesPage extends ConsumerWidget {
     );
   }
 
+  /// Caixa de busca por nome/instituição — currículos reais têm 30-40+
+  /// entradas espalhadas por 8 categorias (achado de pesquisa de UX: listas
+  /// longas pedem busca além de scroll/recolher, ver DECISOES.md). Por
+  /// decisão do usuário, as 8 seções continuam SEMPRE visíveis mesmo
+  /// buscando — só os itens dentro de cada uma são filtrados.
+  Widget _campoBusca(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: TextField(
+        controller: _buscaController,
+        decoration: InputDecoration(
+          hintText: 'Buscar por nome da entrada...',
+          isDense: true,
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _busca.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.clear),
+                  tooltip: 'Limpar busca',
+                  onPressed: () {
+                    _buscaController.clear();
+                    setState(() => _busca = '');
+                  },
+                ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        onChanged: (valor) => setState(() => _busca = valor),
+      ),
+    );
+  }
+
+  bool _bateComABusca(EntradaLattesRef entrada) {
+    if (_busca.isEmpty) return true;
+    final alvo = '${entrada.titulo} ${entrada.subtitulo}'.toLowerCase();
+    return alvo.contains(_busca.toLowerCase());
+  }
+
   /// Seção recolhível (uma por categoria) — currículos grandes têm dezenas
   /// de entradas espalhadas por 8 categorias, ninguém consegue (nem
   /// precisa) ver tudo expandido ao mesmo tempo. Aberta por padrão porque é
@@ -152,6 +223,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
     if (entradas.isEmpty) return const SizedBox.shrink();
 
     final concluidas = _concluidas(estado, entradas);
+    final entradasFiltradas = entradas.where(_bateComABusca).toList();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -165,7 +237,16 @@ class ComprovantesLattesPage extends ConsumerWidget {
         subtitle: Text('$concluidas de ${entradas.length} com comprovante'),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
         children: [
-          for (final entrada in entradas) _linhaEntrada(context, ref, estado, entrada),
+          if (entradasFiltradas.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Nenhuma entrada desta categoria corresponde à busca.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            )
+          else
+            for (final entrada in entradasFiltradas) _linhaEntrada(context, ref, estado, entrada),
         ],
       ),
     );
@@ -296,7 +377,9 @@ class ComprovantesLattesPage extends ConsumerWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : IconButton(
-                    tooltip: anexos.isEmpty ? 'Anexar comprovante' : 'Anexar mais um comprovante',
+                    tooltip:
+                        '${anexos.isEmpty ? 'Anexar comprovante' : 'Anexar mais um comprovante'} '
+                        '— JPG, PNG, HEIC, WEBP ou PDF, até 15MB',
                     icon: const Icon(Icons.upload_outlined),
                     onPressed: () => ref
                         .read(comprovantesControllerProvider.notifier)

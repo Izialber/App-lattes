@@ -23,12 +23,33 @@ class ComprovantesSyncState {
   final bool sincronizando;
   final String? erro;
 
-  const ComprovantesSyncState({this.sincronizando = false, this.erro});
+  /// Progresso textual de [sincronizarTodos] ("Enviando X de Y arquivos"),
+  /// não usado pela retomada automática nem pelo retry de um único arquivo
+  /// — só o disparo manual ("sincronizar tudo") tem uma fila longa o
+  /// suficiente pra um rótulo de progresso valer a pena (ver DECISOES.md,
+  /// pesquisa de UX sobre indicadores com texto vs. spinner silencioso).
+  final int enviados;
+  final int totalParaSincronizar;
 
-  ComprovantesSyncState copyWith({bool? sincronizando, String? erro, bool limparErro = false}) {
+  const ComprovantesSyncState({
+    this.sincronizando = false,
+    this.erro,
+    this.enviados = 0,
+    this.totalParaSincronizar = 0,
+  });
+
+  ComprovantesSyncState copyWith({
+    bool? sincronizando,
+    String? erro,
+    bool limparErro = false,
+    int? enviados,
+    int? totalParaSincronizar,
+  }) {
     return ComprovantesSyncState(
       sincronizando: sincronizando ?? this.sincronizando,
       erro: limparErro ? null : (erro ?? this.erro),
+      enviados: enviados ?? this.enviados,
+      totalParaSincronizar: totalParaSincronizar ?? this.totalParaSincronizar,
     );
   }
 }
@@ -72,22 +93,30 @@ class ComprovantesSyncController extends Notifier<ComprovantesSyncState> {
   }
 
   Future<void> sincronizarTodos() async {
-    state = state.copyWith(sincronizando: true, limparErro: true);
+    state = state.copyWith(
+      sincronizando: true,
+      limparErro: true,
+      enviados: 0,
+      totalParaSincronizar: 0,
+    );
 
     try {
       final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
-      final pendentes = todos.where(
-        (c) => c.statusSincronizacao != StatusSincronizacaoComprovante.sincronizado,
-      );
+      final pendentes = todos
+          .where((c) => c.statusSincronizacao != StatusSincronizacaoComprovante.sincronizado)
+          .toList();
+
+      state = state.copyWith(totalParaSincronizar: pendentes.length);
 
       for (final comprovante in pendentes) {
         await _sincronizarUm(comprovante);
+        state = state.copyWith(enviados: state.enviados + 1);
       }
     } catch (e) {
       state = state.copyWith(erro: 'Falha ao listar comprovantes pendentes: $e');
     }
 
-    state = state.copyWith(sincronizando: false);
+    state = state.copyWith(sincronizando: false, enviados: 0, totalParaSincronizar: 0);
   }
 
   /// Tenta de novo um único comprovante que falhou (botão de retry na UI).

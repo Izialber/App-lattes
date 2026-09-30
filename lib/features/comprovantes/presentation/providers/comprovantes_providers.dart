@@ -79,6 +79,12 @@ class ComprovantesState {
 /// carregado por `LattesImportController` (persistido, ver
 /// `CurriculoLocalStore`) — esta tela não importa XML por conta própria.
 class ComprovantesController extends Notifier<ComprovantesState> {
+  /// Nenhum limite existia antes — um arquivo gigante entrava sem aviso
+  /// nenhum (achado de pesquisa de UX: "especificar formato e tamanho
+  /// máximo antes do upload", ver DECISOES.md). 15MB cobre folgadamente uma
+  /// foto/scan de certificado ou um PDF digitalizado comum.
+  static const _tamanhoMaximoBytes = 15 * 1024 * 1024;
+
   @override
   ComprovantesState build() {
     final curriculo = ref.watch(lattesImportControllerProvider).curriculo;
@@ -115,6 +121,14 @@ class ComprovantesController extends Notifier<ComprovantesState> {
   Future<void> selecionarEAnexar(EntradaLattesRef entrada) async {
     final arquivo = await ref.read(comprovanteUploadDatasourceProvider).selecionarArquivo();
     if (arquivo == null) return;
+
+    if (arquivo.bytes.length > _tamanhoMaximoBytes) {
+      final tamanhoMb = (arquivo.bytes.length / (1024 * 1024)).toStringAsFixed(1);
+      state = state.copyWith(
+        erro: 'Arquivo "${arquivo.nomeArquivo}" tem ${tamanhoMb}MB — o limite é 15MB.',
+      );
+      return;
+    }
 
     state = state.copyWith(entradaProcessando: entrada.id, limparErro: true);
 
