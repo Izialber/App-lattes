@@ -9,6 +9,7 @@ import 'package:web/web.dart' as web;
 import '../../../../core/di/injection.dart';
 import '../../../../core/platform/camera/camera_service_web.dart';
 import '../../../../core/routing/app_router.dart';
+import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../../../cloud_sync/presentation/providers/cloud_sync_providers.dart';
 import '../../domain/entities/certificado_capturado.dart';
 import '../providers/certificate_capture_providers.dart';
@@ -34,6 +35,7 @@ class CertificateCapturePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const VoltarAppBarButton(rotaPai: AppRoutes.importarLattes),
         title: const Text('Capturar certificados'),
         actions: [
           IconButton(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/routing/app_router.dart';
+import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../../domain/entities/llm_provider_escolhido.dart';
 import '../providers/llm_shared_providers.dart';
 
@@ -30,7 +32,10 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
     final testando = estado.status == StatusTesteLlm.testando;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurar provedor de LLM')),
+      appBar: AppBar(
+        leading: const VoltarAppBarButton(rotaPai: AppRoutes.importarLattes),
+        title: const Text('Configurar provedor de LLM'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: ListView(

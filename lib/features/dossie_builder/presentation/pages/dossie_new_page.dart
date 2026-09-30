@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_router.dart';
+import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../providers/dossie_builder_providers.dart';
 
 /// Primeira tela do módulo 4: seleciona o PDF do edital, extrai os
@@ -17,7 +19,10 @@ class DossieNewPage extends ConsumerWidget {
     final estado = ref.watch(dossieBuilderControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Montar dossiê')),
+      appBar: AppBar(
+        leading: const VoltarAppBarButton(rotaPai: AppRoutes.capturarCertificados),
+        title: const Text('Montar dossiê'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

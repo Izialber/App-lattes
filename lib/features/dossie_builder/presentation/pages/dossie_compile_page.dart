@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/platform/download/browser_download_web.dart';
+import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../../domain/entities/dossie.dart';
 import '../providers/dossie_builder_providers.dart';
 
@@ -56,7 +57,10 @@ class _DossieCompilePageState extends ConsumerState<DossieCompilePage> {
     final dossie = estado.dossie;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Compilar dossiê')),
+      appBar: AppBar(
+        leading: VoltarAppBarButton(rotaPai: '/dossie/${widget.dossieId}/checklist'),
+        title: const Text('Compilar dossiê'),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

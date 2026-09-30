@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/platform/download/browser_download_web.dart';
 import '../../../../core/routing/app_router.dart';
+import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../../../cloud_sync/presentation/providers/comprovantes_sync_providers.dart';
 import '../../domain/entities/categoria_entrada_lattes.dart';
 import '../../domain/entities/comprovante_entrada.dart';
@@ -29,6 +30,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const VoltarAppBarButton(rotaPai: AppRoutes.importarLattes),
         title: const Text('Comprovantes'),
         actions: [
           IconButton(

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/routing/app_router.dart';
+import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
 import '../../domain/entities/criterio_pontuacao.dart';
 import '../../domain/entities/edital.dart';
@@ -45,7 +47,10 @@ class _DossieChecklistPageState extends ConsumerState<DossieChecklistPage> {
         estado.dossie?.vinculosRevisados.any((v) => v.decisao == DecisaoVinculo.aprovado) ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Revisar dossiê')),
+      appBar: AppBar(
+        leading: const VoltarAppBarButton(rotaPai: AppRoutes.dossieNovo),
+        title: const Text('Revisar dossiê'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: temAprovado ? () => context.go('/dossie/${widget.dossieId}/compilar') : null,
         icon: const Icon(Icons.picture_as_pdf_outlined),
