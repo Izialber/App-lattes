@@ -924,3 +924,12 @@ apresentadas ao usuário, que escolheu as três:
 **Fora de escopo por enquanto**: dark mode, navegação tipo "stepper"/breadcrumb entre os módulos,
 preview de arquivo antes do upload — não pesquisados a fundo ainda porque o usuário não os
 priorizou nesta rodada (ver pergunta feita com opções antes de implementar).
+
+**Testado ao vivo**: busca confirmada (filtra "Matemática" corretamente, categorias sem resultado
+mostram "Nenhuma entrada desta categoria corresponde à busca." em vez de sumir, exatamente como
+pedido); tooltip do botão de anexar confirmado ("Anexar comprovante — JPG, PNG, HEIC, WEBP ou PDF,
+até 15MB"); sincronização de 4 arquivos novos confirmada funcionando (todos passaram para
+"sincronizado"), mas o texto de progresso "Enviando X de Y" não foi capturado visualmente — com
+poucos arquivos pequenos e rede rápida, o processo terminou rápido demais entre o clique e a
+próxima screenshot. Lógica revisada como código, consistente com o padrão já confirmado em outros
+indicadores de status desta mesma tela.
