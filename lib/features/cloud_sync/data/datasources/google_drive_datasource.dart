@@ -51,17 +51,27 @@ class GoogleDriveDatasource {
   /// criar duas pastas com o mesmo nome (a Drive API não tem "create if not
   /// exists" atômico) — risco aceito, já que este app só chama isto uma
   /// sessão de navegador por vez.
-  Future<String> criarPastaSeNaoExistir(String nomePasta) async {
+  ///
+  /// [pastaPaiId], quando informado, restringe a busca/criação a DENTRO
+  /// dessa pasta (subpasta) — usado pelo módulo de comprovantes pra
+  /// organizar por categoria dentro da pasta dedicada do app. Sem ele, o
+  /// comportamento é o de sempre (busca/cria na raiz do Drive).
+  Future<String> criarPastaSeNaoExistir(String nomePasta, {String? pastaPaiId}) async {
     final existente = await _buscarPorNome(
       nomePasta,
       filtroMimeType: "mimeType='application/vnd.google-apps.folder'",
+      pastaPaiId: pastaPaiId,
     );
     if (existente != null) return existente;
 
     final criada = await _dio.post<Map<String, dynamic>>(
       '$_apiBase/files',
       queryParameters: {'fields': 'id'},
-      data: {'name': nomePasta, 'mimeType': 'application/vnd.google-apps.folder'},
+      data: {
+        'name': nomePasta,
+        'mimeType': 'application/vnd.google-apps.folder',
+        if (pastaPaiId != null) 'parents': [pastaPaiId],
+      },
       options: Options(contentType: 'application/json'),
     );
     return criada.data!['id'] as String;
@@ -77,12 +87,17 @@ class GoogleDriveDatasource {
     );
   }
 
-  Future<String?> _buscarPorNome(String nome, {required String filtroMimeType}) async {
+  Future<String?> _buscarPorNome(
+    String nome, {
+    required String filtroMimeType,
+    String? pastaPaiId,
+  }) async {
     final nomeEscapado = nome.replaceAll("'", r"\'");
+    final filtroPai = pastaPaiId != null ? " and '$pastaPaiId' in parents" : '';
     final busca = await _dio.get<Map<String, dynamic>>(
       '$_apiBase/files',
       queryParameters: {
-        'q': "$filtroMimeType and name='$nomeEscapado' and trashed=false",
+        'q': "$filtroMimeType and name='$nomeEscapado' and trashed=false$filtroPai",
         'spaces': 'drive',
         'fields': 'files(id,name)',
       },

@@ -39,10 +39,11 @@ void main() {
     String? uploadSessionUrl,
     int bytesEnviados = 0,
     String? mensagemErro,
+    String? subpastaNome,
   }) =>
       UploadTask(
         id: id,
-        certificadoId: 'cert1',
+        referenciaId: 'cert1',
         provider: provider,
         nomeArquivoDeterministico: '2024-05-10_curso-x_abcd1234.pdf',
         caminhoPdfLocal: id,
@@ -50,6 +51,7 @@ void main() {
         uploadSessionUrl: uploadSessionUrl,
         bytesEnviados: bytesEnviados,
         mensagemErro: mensagemErro,
+        subpastaNome: subpastaNome,
       );
 
   setUp(() {
@@ -271,6 +273,64 @@ void main() {
         },
         (_) => fail('esperava Left'),
       );
+    });
+
+    test('usa subpasta (categoria) dentro da pasta raiz quando informada', () async {
+      when(() => localStore.lerPdf(any())).thenReturn(Uint8List.fromList([1, 2, 3]));
+      when(() => googleDrive.criarPastaSeNaoExistir(any())).thenAnswer((_) async => 'raiz123');
+      when(() => googleDrive.criarPastaSeNaoExistir(any(), pastaPaiId: any(named: 'pastaPaiId')))
+          .thenAnswer((_) async => 'subpasta456');
+      when(() => googleDrive.iniciarSessaoUploadResumivel(
+            pastaId: any(named: 'pastaId'),
+            nomeArquivo: any(named: 'nomeArquivo'),
+            tamanhoBytes: any(named: 'tamanhoBytes'),
+          )).thenAnswer((_) async => 'https://sessao-de-upload');
+      when(() => googleDrive.enviarChunk(
+            sessionUrl: any(named: 'sessionUrl'),
+            bytes: any(named: 'bytes'),
+            offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
+          )).thenAnswer((_) async => (bytesConfirmados: 3, idArquivo: 'arquivo123'));
+
+      await repository.enviarArquivo(taskBase(subpastaNome: 'Formação acadêmica'));
+
+      verify(() => googleDrive.criarPastaSeNaoExistir(
+            'Formação acadêmica',
+            pastaPaiId: 'raiz123',
+          )).called(1);
+      verify(() => googleDrive.iniciarSessaoUploadResumivel(
+            pastaId: 'subpasta456',
+            nomeArquivo: any(named: 'nomeArquivo'),
+            tamanhoBytes: any(named: 'tamanhoBytes'),
+          )).called(1);
+    });
+
+    test('cache de subpasta é por nome — categorias diferentes não compartilham', () async {
+      when(() => localStore.lerPdf(any())).thenReturn(Uint8List.fromList([1, 2, 3]));
+      when(() => googleDrive.criarPastaSeNaoExistir(any())).thenAnswer((_) async => 'raiz123');
+      when(() => googleDrive.criarPastaSeNaoExistir(any(), pastaPaiId: any(named: 'pastaPaiId')))
+          .thenAnswer((invocation) async => 'subpasta-${invocation.positionalArguments.first}');
+      when(() => googleDrive.iniciarSessaoUploadResumivel(
+            pastaId: any(named: 'pastaId'),
+            nomeArquivo: any(named: 'nomeArquivo'),
+            tamanhoBytes: any(named: 'tamanhoBytes'),
+          )).thenAnswer((_) async => 'https://sessao-de-upload');
+      when(() => googleDrive.enviarChunk(
+            sessionUrl: any(named: 'sessionUrl'),
+            bytes: any(named: 'bytes'),
+            offset: any(named: 'offset'),
+            tamanhoTotalArquivo: any(named: 'tamanhoTotalArquivo'),
+          )).thenAnswer((_) async => (bytesConfirmados: 3, idArquivo: 'arquivo123'));
+
+      await repository.enviarArquivo(taskBase(subpastaNome: 'Formação acadêmica'));
+      await repository.enviarArquivo(taskBase(id: 'task2', subpastaNome: 'Idiomas'));
+      await repository.enviarArquivo(taskBase(id: 'task3', subpastaNome: 'Formação acadêmica'));
+
+      // 1 pra raiz + 1 por categoria distinta (2) — a repetição da mesma
+      // categoria não gera uma terceira chamada.
+      verify(() => googleDrive.criarPastaSeNaoExistir(any())).called(1);
+      verify(() => googleDrive.criarPastaSeNaoExistir(any(), pastaPaiId: any(named: 'pastaPaiId')))
+          .called(2);
     });
   });
 }

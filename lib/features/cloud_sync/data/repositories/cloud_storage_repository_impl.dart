@@ -40,8 +40,18 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
   /// também preenche este cache, não só `enviarArquivo`.
   String? _pastaIdCache;
 
-  Future<String> _pastaId() async {
-    return _pastaIdCache ??= await _googleDrive.criarPastaSeNaoExistir(AppConstants.cloudFolderName);
+  /// Cache da subpasta por categoria (módulo de comprovantes) — chave é o
+  /// nome da subpasta (`UploadTask.subpastaNome`), já que pode haver várias
+  /// (uma por categoria) dentro da mesma pasta dedicada.
+  final Map<String, String> _subpastaIdCache = {};
+
+  Future<String> _pastaId({String? subpastaNome}) async {
+    final raizId =
+        _pastaIdCache ??= await _googleDrive.criarPastaSeNaoExistir(AppConstants.cloudFolderName);
+    if (subpastaNome == null) return raizId;
+
+    return _subpastaIdCache[subpastaNome] ??=
+        await _googleDrive.criarPastaSeNaoExistir(subpastaNome, pastaPaiId: raizId);
   }
 
   /// Tamanho de cada PUT do upload resumível — precisa ser múltiplo de
@@ -59,7 +69,7 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
     if (task.provider == CloudProvider.oneDrive) return const Left(_falhaOneDrive);
 
     try {
-      return Right(await _pastaId());
+      return Right(await _pastaId(subpastaNome: task.subpastaNome));
     } on DioException catch (e) {
       return Left(_falhaDeDioException(e));
     } catch (e) {
@@ -79,7 +89,7 @@ class CloudStorageRepositoryImpl implements CloudStorageRepository {
     }
 
     try {
-      final pastaId = await _pastaId();
+      final pastaId = await _pastaId(subpastaNome: task.subpastaNome);
 
       // Retoma a sessão já aberta (reload de aba no meio do upload) em vez
       // de começar de novo — requisito do contrato de `enviarArquivo` (ver

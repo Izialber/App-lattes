@@ -12,3 +12,19 @@ enum CategoriaEntradaLattes {
   projetoPesquisa,
   idioma,
 }
+
+/// Rótulo em português pra exibição — usado tanto pela tela de comprovantes
+/// (título de cada seção) quanto pelo módulo de sincronização com o Drive
+/// (nome da subpasta por categoria, ver `ComprovantesSyncController`).
+extension CategoriaEntradaLattesRotulo on CategoriaEntradaLattes {
+  String get rotulo => switch (this) {
+        CategoriaEntradaLattes.curso => 'Formação acadêmica',
+        CategoriaEntradaLattes.experienciaProfissional => 'Experiência profissional',
+        CategoriaEntradaLattes.publicacao => 'Produção bibliográfica',
+        CategoriaEntradaLattes.orientacao => 'Orientações',
+        CategoriaEntradaLattes.producaoTecnica => 'Produção técnica',
+        CategoriaEntradaLattes.participacaoEvento => 'Participação em eventos',
+        CategoriaEntradaLattes.projetoPesquisa => 'Projetos de pesquisa',
+        CategoriaEntradaLattes.idioma => 'Idiomas',
+      };
+}

@@ -176,4 +176,62 @@ void main() {
       expect(bytes, [1, 2, 3]);
     });
   });
+
+  group('atualizarStatusSincronizacao', () {
+    ComprovanteEntrada comprovanteBase() => ComprovanteEntrada(
+          id: 'c1',
+          entradaId: 'e1',
+          categoria: CategoriaEntradaLattes.curso,
+          nomeArquivo: 'diploma.pdf',
+          mimeType: 'application/pdf',
+          anexadoEm: DateTime(2026, 1, 1),
+        );
+
+    test('grava status e idArquivoCloud em sucesso', () async {
+      when(() => localStore.buscar('c1')).thenReturn(comprovanteBase());
+
+      final resultado = await repository.atualizarStatusSincronizacao(
+        'c1',
+        StatusSincronizacaoComprovante.sincronizado,
+        idArquivoCloud: 'drive123',
+      );
+
+      expect(resultado.isRight(), isTrue);
+      final salvo = verify(() => localStore.salvar(captureAny())).captured.single
+          as ComprovanteEntrada;
+      expect(salvo.statusSincronizacao, StatusSincronizacaoComprovante.sincronizado);
+      expect(salvo.idArquivoCloud, 'drive123');
+    });
+
+    test('limpa mensagemErroSincronizacao anterior quando a transição não traz uma', () async {
+      final comErroAnterior = comprovanteBase().copyWith(
+        statusSincronizacao: StatusSincronizacaoComprovante.falha,
+        mensagemErroSincronizacao: 'falha antiga',
+      );
+      when(() => localStore.buscar('c1')).thenReturn(comErroAnterior);
+
+      await repository.atualizarStatusSincronizacao(
+        'c1',
+        StatusSincronizacaoComprovante.sincronizado,
+      );
+
+      final salvo = verify(() => localStore.salvar(captureAny())).captured.single
+          as ComprovanteEntrada;
+      expect(salvo.mensagemErroSincronizacao, isNull);
+    });
+
+    test('LocalStorageFailure quando o comprovante não existe', () async {
+      when(() => localStore.buscar('inexistente')).thenReturn(null);
+
+      final resultado = await repository.atualizarStatusSincronizacao(
+        'inexistente',
+        StatusSincronizacaoComprovante.sincronizando,
+      );
+
+      resultado.match(
+        (falha) => expect(falha, isA<LocalStorageFailure>()),
+        (_) => fail('esperava Left'),
+      );
+    });
+  });
 }

@@ -17,8 +17,7 @@ Como as entidades do Lattes não têm id, um id estável é derivado por hash do
 identificam cada entrada — ver DECISOES.md para a limitação aceita (edição de um campo
 identificador no Lattes oficial "orfaniza" o comprovante antigo, que fica visível numa seção
 separada em vez de sumir). O Módulo 2 antigo (captura solta + LLM) continua no repositório, só
-desconectado da navegação principal — Módulo 3 e Módulo 4 não foram tocados nesta rodada,
-por instrução explícita do usuário de fazer um módulo de cada vez.
+desconectado da navegação principal.
 
 **Testado ao vivo com um XML real do usuário e confirmado funcionando de ponta a ponta** — todas
 as 8 categorias, na ordem certa, com botão de upload por item. Achado no teste ao vivo: uma
@@ -30,6 +29,16 @@ lista de arquivos já anexados por entrada, cada um com seu baixar/remover.
 Ainda no mesmo teste ao vivo: seções da tela de Comprovantes viraram recolhíveis (currículo real
 tem 30-40+ entradas, ninguém preenche tudo de uma vez), ganhou um cabeçalho com % de conclusão
 geral, e um botão na AppBar pra voltar e reimportar um XML atualizado do Lattes.
+
+**Módulo 3 (sync com o Drive) conectado ao módulo de comprovantes** — até aqui os comprovantes
+só ficavam salvos localmente, sem backup nenhum (achado ao usuário perguntar onde estava indo
+pro Drive). Toda a mecânica de upload resumível já existente (chunking, backoff, retomada de
+sessão) é reaproveitada sem duplicar — só generalizada (`UploadTask.certificadoId` virou
+`referenciaId`, um campo opaco que os dois módulos compartilham na mesma fila). Organização no
+Drive: uma subpasta por categoria dentro da pasta dedicada (`Certificados Lattes/Formação
+acadêmica/`, `Certificados Lattes/Idiomas/` etc.). Ícone de sincronizar na AppBar (disparo
+manual, por decisão do usuário) + indicador de status (nuvem cinza/spinner/check/erro) em cada
+arquivo já anexado, com retry individual em caso de falha.
 
 **LLM compartilhado (`llm_shared`) também ficou real** (usado pelo Módulo 2 antigo e pelo Módulo
 4 — o Módulo 2 novo, descrito acima, não usa LLM nenhum): `GeminiLlmDatasource` e
@@ -89,7 +98,7 @@ três implementações inconsistentes de "achar item por id" unificadas com `pac
 completa, incluindo os achados não corrigidos por severidade menor (duplicação estrutural entre
 os 3 local stores, fora de escopo sem SDK Flutter para validar o refactor).
 
-135 testes unitários no total (119 anteriores + 16 novos do módulo de comprovantes: geração de
-id estável e o repositório de comprovantes).
+140 testes unitários no total (119 anteriores + 16 do módulo de comprovantes + 5 da conexão com
+o Drive: cache de subpasta por categoria, status de sincronização por comprovante).
 
 Sem SDK Flutter neste ambiente — nada foi compilado; tudo revisado como texto.

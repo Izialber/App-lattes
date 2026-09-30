@@ -4,20 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/platform/download/browser_download_web.dart';
 import '../../../../core/routing/app_router.dart';
+import '../../../cloud_sync/presentation/providers/comprovantes_sync_providers.dart';
 import '../../domain/entities/categoria_entrada_lattes.dart';
+import '../../domain/entities/comprovante_entrada.dart';
 import '../../domain/entities/entrada_lattes_ref.dart';
 import '../providers/comprovantes_providers.dart';
-
-const _rotuloCategoria = {
-  CategoriaEntradaLattes.curso: 'Formação acadêmica',
-  CategoriaEntradaLattes.experienciaProfissional: 'Experiência profissional',
-  CategoriaEntradaLattes.publicacao: 'Produção bibliográfica',
-  CategoriaEntradaLattes.orientacao: 'Orientações',
-  CategoriaEntradaLattes.producaoTecnica: 'Produção técnica',
-  CategoriaEntradaLattes.participacaoEvento: 'Participação em eventos',
-  CategoriaEntradaLattes.projetoPesquisa: 'Projetos de pesquisa',
-  CategoriaEntradaLattes.idioma: 'Idiomas',
-};
 
 /// Módulo 2 redesenhado: cada entrada do currículo Lattes (Módulo 1) já
 /// pede diretamente seu comprovante, sem LLM e sem tentar adivinhar vínculo
@@ -31,11 +22,28 @@ class ComprovantesLattesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final estado = ref.watch(comprovantesControllerProvider);
+    final estadoSync = ref.watch(comprovantesSyncControllerProvider);
+    final temPendentes = estado.comprovantes.values.expand((l) => l).any(
+          (c) => c.statusSincronizacao != StatusSincronizacaoComprovante.sincronizado,
+        );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Comprovantes'),
         actions: [
+          IconButton(
+            tooltip: 'Sincronizar com o Google Drive',
+            icon: estadoSync.sincronizando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_upload_outlined),
+            onPressed: (!temPendentes || estadoSync.sincronizando)
+                ? null
+                : () => ref.read(comprovantesSyncControllerProvider.notifier).sincronizarTodos(),
+          ),
           IconButton(
             tooltip: 'Importar XML atualizado do Lattes',
             icon: const Icon(Icons.upload_file_outlined),
@@ -53,6 +61,18 @@ class ComprovantesLattesPage extends ConsumerWidget {
                 TextButton(
                   onPressed: () =>
                       ref.read(comprovantesControllerProvider.notifier).limparErro(),
+                  child: const Text('Fechar'),
+                ),
+              ],
+            ),
+          if (estadoSync.erro != null)
+            MaterialBanner(
+              content: Text(estadoSync.erro!),
+              leading: const Icon(Icons.cloud_off_outlined),
+              actions: [
+                TextButton(
+                  onPressed: () =>
+                      ref.read(comprovantesSyncControllerProvider.notifier).limparErro(),
                   child: const Text('Fechar'),
                 ),
               ],
@@ -137,7 +157,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
       child: ExpansionTile(
         initiallyExpanded: true,
         title: Text(
-          '${_rotuloCategoria[categoria]} (${entradas.length})',
+          '${categoria.rotulo} (${entradas.length})',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         subtitle: Text('$concluidas de ${entradas.length} com comprovante'),
@@ -185,7 +205,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.help_outline),
                 title: Text(comprovante.nomeArquivo),
-                subtitle: Text(_rotuloCategoria[comprovante.categoria] ?? ''),
+                subtitle: Text(comprovante.categoria.rotulo),
                 trailing: IconButton(
                   tooltip: 'Remover comprovante',
                   icon: const Icon(Icons.delete_outline),
@@ -198,6 +218,51 @@ class ComprovantesLattesPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Status de sincronização de UM comprovante — nuvem cinza (ainda não
+  /// enviado), spinner (enviando agora), nuvem com check verde (já está no
+  /// Drive), nuvem com erro que, ao tocar, tenta de novo só esse arquivo.
+  Widget _indicadorSincronizacao(
+    BuildContext context,
+    WidgetRef ref,
+    ComprovanteEntrada anexo,
+  ) {
+    switch (anexo.statusSincronizacao) {
+      case StatusSincronizacaoComprovante.sincronizando:
+        return const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        );
+      case StatusSincronizacaoComprovante.sincronizado:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Icon(
+            Icons.cloud_done_outlined,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      case StatusSincronizacaoComprovante.falha:
+        return IconButton(
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          tooltip:
+              anexo.mensagemErroSincronizacao ?? 'Falha ao sincronizar — toque para tentar de novo',
+          icon: Icon(Icons.cloud_off_outlined, color: Theme.of(context).colorScheme.error),
+          onPressed: () =>
+              ref.read(comprovantesSyncControllerProvider.notifier).retentarUm(anexo.id),
+        );
+      case StatusSincronizacaoComprovante.naoSincronizado:
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Icon(Icons.cloud_outlined, size: 18, color: Theme.of(context).hintColor),
+        );
+    }
   }
 
   Widget _linhaEntrada(
@@ -250,6 +315,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  _indicadorSincronizacao(context, ref, anexo),
                   IconButton(
                     iconSize: 18,
                     visualDensity: VisualDensity.compact,

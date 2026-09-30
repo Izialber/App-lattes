@@ -51,6 +51,9 @@ class ComprovanteLocalStore {
         'nomeArquivo': c.nomeArquivo,
         'mimeType': c.mimeType,
         'anexadoEm': c.anexadoEm.toIso8601String(),
+        'statusSincronizacao': c.statusSincronizacao.name,
+        'idArquivoCloud': c.idArquivoCloud,
+        'mensagemErroSincronizacao': c.mensagemErroSincronizacao,
       };
 
   ComprovanteEntrada _daMapa(dynamic mapaBruto) {
@@ -62,6 +65,13 @@ class ComprovanteLocalStore {
       nomeArquivo: mapa['nomeArquivo'] as String,
       mimeType: mapa['mimeType'] as String,
       anexadoEm: DateTime.parse(mapa['anexadoEm'] as String),
+      // Fallback pra naoSincronizado: comprovantes anexados antes deste
+      // campo existir não têm essa chave gravada.
+      statusSincronizacao: mapa['statusSincronizacao'] == null
+          ? StatusSincronizacaoComprovante.naoSincronizado
+          : StatusSincronizacaoComprovante.values.byName(mapa['statusSincronizacao'] as String),
+      idArquivoCloud: mapa['idArquivoCloud'] as String?,
+      mensagemErroSincronizacao: mapa['mensagemErroSincronizacao'] as String?,
     );
   }
 }

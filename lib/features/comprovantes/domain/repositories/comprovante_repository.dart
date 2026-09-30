@@ -28,4 +28,14 @@ abstract class ComprovanteRepository {
   Future<List<ComprovanteEntrada>> listarTodos();
 
   Uint8List? lerBytes(String comprovanteId);
+
+  /// Atualiza o status de sincronização com o Drive (mesmo padrão de
+  /// `CertificateRepository.atualizarStatus`) — usado por
+  /// `ComprovantesSyncController` (`cloud_sync`).
+  Future<Either<Failure, Unit>> atualizarStatusSincronizacao(
+    String comprovanteId,
+    StatusSincronizacaoComprovante status, {
+    String? idArquivoCloud,
+    String? mensagemErro,
+  });
 }

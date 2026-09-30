@@ -45,7 +45,7 @@ class UploadQueueLocalStore {
 
   Map<String, dynamic> _paraMapa(UploadTask t) => {
         'id': t.id,
-        'certificadoId': t.certificadoId,
+        'referenciaId': t.referenciaId,
         'provider': t.provider.name,
         'nomeArquivoDeterministico': t.nomeArquivoDeterministico,
         'caminhoPdfLocal': t.caminhoPdfLocal,
@@ -55,6 +55,7 @@ class UploadQueueLocalStore {
         'bytesEnviados': t.bytesEnviados,
         'idArquivoCloud': t.idArquivoCloud,
         'mensagemErro': t.mensagemErro,
+        'subpastaNome': t.subpastaNome,
       };
 
   UploadTask _daMapa(dynamic mapaBruto) {
@@ -62,7 +63,9 @@ class UploadQueueLocalStore {
 
     return UploadTask(
       id: mapa['id'] as String,
-      certificadoId: mapa['certificadoId'] as String,
+      // Fallback pro nome antigo do campo ('certificadoId') — tarefas
+      // gravadas antes da fila virar compartilhada entre módulos.
+      referenciaId: (mapa['referenciaId'] ?? mapa['certificadoId']) as String,
       provider: CloudProvider.values.byName(mapa['provider'] as String),
       nomeArquivoDeterministico: mapa['nomeArquivoDeterministico'] as String,
       caminhoPdfLocal: mapa['caminhoPdfLocal'] as String,
@@ -72,6 +75,7 @@ class UploadQueueLocalStore {
       bytesEnviados: mapa['bytesEnviados'] as int? ?? 0,
       idArquivoCloud: mapa['idArquivoCloud'] as String?,
       mensagemErro: mapa['mensagemErro'] as String?,
+      subpastaNome: mapa['subpastaNome'] as String?,
     );
   }
 }

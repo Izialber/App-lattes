@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/utils/constants.dart';
+import '../../../../core/utils/sanitizar_nome_arquivo.dart';
 import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
 import '../../../certificate_capture/presentation/providers/certificate_capture_providers.dart';
 import '../../data/datasources/google_drive_datasource.dart';
@@ -96,7 +97,13 @@ class CloudSyncController extends Notifier<CloudSyncState> {
   Future<void> _retomarPendentes() async {
     final fila = ref.read(uploadQueueLocalStoreProvider).listarTodas();
     final pendentes = fila.where(
-      (t) => t.status == UploadStatus.pendente || t.status == UploadStatus.falhaTemporaria,
+      // subpastaNome == null identifica tarefas deste módulo (antigo) na
+      // fila compartilhada com o módulo de comprovantes (que sempre
+      // preenche subpastaNome com a categoria) — sem isso, os dois
+      // controllers tentariam retomar as tarefas um do outro.
+      (t) =>
+          t.subpastaNome == null &&
+          (t.status == UploadStatus.pendente || t.status == UploadStatus.falhaTemporaria),
     );
     if (pendentes.isEmpty) return;
 
@@ -174,11 +181,14 @@ class CloudSyncController extends Notifier<CloudSyncState> {
 
     final task = UploadTask(
       id: taskId,
-      certificadoId: certificado.id,
+      referenciaId: certificado.id,
       provider: CloudProvider.googleDrive,
       nomeArquivoDeterministico: _nomeArquivoDeterministico(certificado),
       caminhoPdfLocal: taskId,
       status: UploadStatus.pendente,
+      // subpastaNome fica null de propósito: distingue tarefas deste
+      // módulo (antigo) das do módulo de comprovantes na fila
+      // compartilhada — ver _retomarPendentes.
     );
     await uploadStore.salvar(task);
 
@@ -201,7 +211,7 @@ class CloudSyncController extends Notifier<CloudSyncState> {
   }
 
   /// Retomada da fila (ver [_retomarPendentes]) não tem o `CertificadoCapturado`
-  /// em mãos diretamente — só a `UploadTask`, que carrega `certificadoId`.
+  /// em mãos diretamente — só a `UploadTask`, que carrega `referenciaId`.
   Future<void> _persistirResultadoDaFila(List<UploadTask> atualizadas) async {
     final certificateRepo = ref.read(certificateRepositoryProvider);
     final uploadStore = ref.read(uploadQueueLocalStoreProvider);
@@ -209,12 +219,12 @@ class CloudSyncController extends Notifier<CloudSyncState> {
     for (final task in atualizadas) {
       if (task.status == UploadStatus.concluido) {
         await uploadStore.remover(task.id);
-        await certificateRepo.atualizarStatus(task.certificadoId, StatusCertificado.sincronizado);
+        await certificateRepo.atualizarStatus(task.referenciaId, StatusCertificado.sincronizado);
       } else {
         await uploadStore.salvar(task);
         if (task.status == UploadStatus.falhaPermanente) {
           await certificateRepo.atualizarStatus(
-            task.certificadoId,
+            task.referenciaId,
             StatusCertificado.falhaSincronizacao,
             mensagemErro: task.mensagemErro,
           );
@@ -230,23 +240,13 @@ class CloudSyncController extends Notifier<CloudSyncState> {
     final dataFormatada = '${data.year.toString().padLeft(4, '0')}-'
         '${data.month.toString().padLeft(2, '0')}-'
         '${data.day.toString().padLeft(2, '0')}';
-    final categoria = _sanitizarParaNomeDeArquivo(certificado.tituloExtraido ?? 'certificado');
+    final categoria = sanitizarParaNomeDeArquivo(certificado.tituloExtraido ?? 'certificado');
     final hash = certificado.id.substring(0, 8);
 
     return AppConstants.pdfNamePattern
         .replaceFirst('{data}', dataFormatada)
         .replaceFirst('{categoria}', categoria)
         .replaceFirst('{hash}', hash);
-  }
-
-  /// Remove caracteres que não são seguros em nome de arquivo em
-  /// Drive/OneDrive/sistemas de arquivo em geral, e limita o tamanho — o
-  /// título extraído pelo LLM pode ser bem mais longo que um nome de
-  /// arquivo razoável.
-  String _sanitizarParaNomeDeArquivo(String texto) {
-    final semCaracteresInvalidos = texto.replaceAll(RegExp(r'[^\w\s-]', unicode: true), '').trim();
-    final comHifen = semCaracteresInvalidos.replaceAll(RegExp(r'\s+'), '-');
-    return comHifen.length > 60 ? comHifen.substring(0, 60) : comHifen;
   }
 }
 

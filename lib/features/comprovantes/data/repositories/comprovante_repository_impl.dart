@@ -82,4 +82,27 @@ class ComprovanteRepositoryImpl implements ComprovanteRepository {
 
   @override
   Uint8List? lerBytes(String comprovanteId) => _localStore.lerBytes(comprovanteId);
+
+  @override
+  Future<Either<Failure, Unit>> atualizarStatusSincronizacao(
+    String comprovanteId,
+    StatusSincronizacaoComprovante status, {
+    String? idArquivoCloud,
+    String? mensagemErro,
+  }) async {
+    final comprovante = _localStore.buscar(comprovanteId);
+    if (comprovante == null) {
+      return Left(LocalStorageFailure('Comprovante $comprovanteId não encontrado.'));
+    }
+    // Toda transição sem mensagemErro nova é progresso/sucesso — não deve
+    // herdar o erro de uma falha anterior já superada (mesmo padrão já
+    // aplicado a CertificadoCapturado/UploadTask, 2ª revisão de código).
+    await _localStore.salvar(comprovante.copyWith(
+      statusSincronizacao: status,
+      idArquivoCloud: idArquivoCloud,
+      mensagemErroSincronizacao: mensagemErro,
+      limparMensagemErroSincronizacao: mensagemErro == null,
+    ));
+    return const Right(unit);
+  }
 }

@@ -768,3 +768,58 @@ espalhadas por 8 categorias, preenchidas aos poucos, em várias sessões. Três 
    Reimportar já atualiza as entradas e preserva os comprovantes já anexados pelas entradas que
    não mudaram (via id estável) — as que mudaram/sumiram viram órfãs, mecanismo que já existia
    desde o desenho original.
+
+## Conectar o Módulo 3 (sync com o Drive) ao módulo de comprovantes (2026-09-30)
+
+Usuário perguntou onde os comprovantes anexados estavam sendo salvos no Drive — resposta real:
+em lugar nenhum. O módulo novo (comprovantes) só gravava localmente; a sincronização com o Drive
+(Módulo 3) existia e funcionava (testada ao vivo, OAuth corrigido nesta sessão), mas foi escrita
+pro módulo antigo (`CertificadoCapturado`), desconectado desde o redesenho do Módulo 2. Decisão
+do usuário: conectar os dois agora, em vez de deixar pra quando entrar no Módulo 3 formalmente.
+
+Toda a mecânica de upload resumível (chunking, backoff, retomada de sessão — a parte com mais
+bugs já corrigidos nesta sessão) é genérica, sem acoplamento nenhum a `CertificadoCapturado`. Só
+precisou generalizar o que carregava esse acoplamento pelo NOME:
+
+1. **`UploadTask.certificadoId` virou `UploadTask.referenciaId`** — sempre foi usado só como
+   chave opaca (a fila nunca interpreta o valor). Os dois módulos agora compartilham a MESMA
+   fila/box do Hive em vez de duplicar toda a lógica de retry — `subpastaNome` (só preenchido
+   pelo módulo de comprovantes) separa as tarefas de cada módulo dentro da fila compartilhada:
+   `CloudSyncController._retomarPendentes` (antigo) filtra `subpastaNome == null`,
+   `ComprovantesSyncController._retomarPendentes` (novo) filtra o oposto — sem isso, os dois
+   controllers tentariam retomar as tarefas um do outro. `UploadQueueLocalStore` lê o nome de
+   campo antigo (`certificadoId`) como fallback ao desserializar, pra não perder nenhuma tarefa
+   que já estivesse na fila antes desta mudança.
+
+2. **Organização no Drive, respondendo "confirma que estão organizados"**: uma subpasta por
+   categoria dentro da pasta dedicada (`Certificados Lattes/Formação acadêmica/`, `Certificados
+   Lattes/Idiomas/` etc.) — `GoogleDriveDatasource.criarPastaSeNaoExistir` ganhou `pastaPaiId`
+   opcional (query da Drive API passa a filtrar `'pastaPaiId' in parents`), e
+   `CloudStorageRepositoryImpl._pastaId` ganhou um segundo cache (`_subpastaIdCache`, por nome de
+   categoria) além do cache da pasta raiz que já existia. Nome do arquivo no Drive: nome original
+   do upload (sanitizado, sem extensão) + hash curto do próprio comprovante — não repete a
+   categoria no nome do arquivo porque ela já é o nome da subpasta.
+
+3. **Status de sincronização por comprovante**: `ComprovanteEntrada` ganhou
+   `statusSincronizacao`/`idArquivoCloud`/`mensagemErroSincronizacao` + `copyWith` (mesmo padrão
+   de `StatusCertificado`, só sem os status intermediários de extração que não existem mais
+   neste módulo). `ComprovanteLocalStore` lê `naoSincronizado` como fallback pra comprovantes
+   gravados antes desses campos existirem (os anexados no teste ao vivo anterior a esta mudança).
+
+4. **Novo orquestrador** `ComprovantesSyncController` (`cloud_sync/presentation/providers/
+   comprovantes_sync_providers.dart` — fica em `cloud_sync`, não em `comprovantes`, mesmo papel
+   cross-feature que `CloudSyncController` já tinha) espelha o antigo método a método:
+   retomada automática de pendentes ao abrir a tela, `sincronizarTodos`/`retentarUm`.
+
+**Decisão confirmada com o usuário**: disparo manual (ícone "sincronizar" na AppBar que envia
+tudo pendente de uma vez), não automático por arquivo — evita 1 round-trip de rede por anexo
+quando o usuário sobe vários de uma vez sem querer esperar a rede a cada clique.
+
+UI: ícone de sincronizar na AppBar (habilitado só quando há algo pendente), e cada linha de
+anexo ganhou um indicador de nuvem (cinza = não sincronizado, spinner = enviando, check verde =
+sincronizado, vermelho = falha — toca pra tentar de novo só aquele arquivo).
+
+**Fora de escopo, deliberado**: Módulo 4 continua sem tocar (ainda lê só `CertificadoCapturado`
+sincronizado). Testes novos cobrem `criarPastaSeNaoExistir` com `pastaPaiId`, cache de subpasta
+por categoria em `CloudStorageRepositoryImpl`, e `ComprovanteRepositoryImpl.
+atualizarStatusSincronizacao`.
