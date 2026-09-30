@@ -1,9 +1,10 @@
 # Resumo da entrega (Módulos 1-4 têm implementação real; nenhum testado ao vivo ainda)
 
-**Login "Continuar com Google" testado ao vivo pela primeira vez** — encontrou um bug real (o
-Google exige `client_secret` na troca de token mesmo com PKCE, pra Client ID tipo "Aplicativo da
-Web") e corrigido (ver DECISOES.md). Reteste completo depois do deploy da correção ainda
-pendente — a sessão foi interrompida antes de eu conseguir confirmar de ponta a ponta.
+**Login "Continuar com Google" testado ao vivo pela primeira vez, e confirmado funcionando** —
+encontrou um bug real (o Google exige `client_secret` na troca de token mesmo com PKCE, pra
+Client ID tipo "Aplicativo da Web"), corrigido, e reconfirmado de ponta a ponta depois do deploy
+(ver DECISOES.md). O fluxo OAuth do Google Drive, bloqueado desde o início do projeto, está
+desbloqueado.
 
 **Módulo 2 foi redesenhado do zero**, por decisão do usuário depois de discutir a UX: em vez de
 capturar certificados soltos e usar LLM pra tentar adivinhar a qual entrada do currículo cada um

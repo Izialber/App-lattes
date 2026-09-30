@@ -665,10 +665,9 @@ descartada por ora — decisão explícita do usuário de priorizar a rota mais 
 pessoal de um usuário só; documentado aqui para reconsiderar se o app for publicado para mais
 gente no futuro.
 
-Correção aplicada; reteste ao vivo depois do deploy ainda pendente no momento desta entrada —
-a sessão foi interrompida (usuário reportou "ficou travado o site") antes de eu conseguir repetir
-o fluxo "Continuar com Google" com o `client_secret` novo em produção. **Pendente**: confirmar ao
-vivo que o login completa de ponta a ponta agora.
+**Confirmado ao vivo em 2026-09-22**: login "Continuar com Google" completa de ponta a ponta com
+o `client_secret` novo — account chooser, aviso de app não verificado, tela de consentimento,
+redirect de volta pra `/importar-lattes` sem erro. Fluxo OAuth do Google Drive desbloqueado.
 
 ## Módulo 2 redesenhado: comprovante por entrada do Lattes, sem LLM (2026-09-22)
 
