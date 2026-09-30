@@ -891,3 +891,36 @@ Testado ao vivo: os 4 casos com rota-pai estática (Comprovantes, Configurar LLM
 certificados, Montar dossiê) confirmados navegando corretamente. Os 2 casos do checklist/compilar
 de dossiê não foram testados ao vivo (exigiriam montar um dossiê completo só pra isso) — mesmo
 padrão de widget já confirmado funcionando nos outros 4, revisado como texto.
+
+## Melhorias de UX/UI pesquisadas antes de implementar (2026-09-30)
+
+Usuário pediu uma "melhorada de UX/UI baseada em práticas de mercado", mas com uma instrução
+explícita e marcada como muito importante: pesquisar e avaliar opções ANTES de implementar
+qualquer coisa. Pesquisa feita (Material Design 3, padrões de listas longas/busca, indicadores de
+progresso, upload de arquivo) e confirmada contra o código real do app antes de virar opção —
+achados genéricos descartados quando não bateram com o estado atual (ex.: Material 3 já estava
+habilitado em `main.dart`, então não virou opção). Três lacunas confirmadas viraram opções
+apresentadas ao usuário, que escolheu as três:
+
+1. **Busca na lista de Comprovantes**: listas com mais de ~20-30 itens se beneficiam de uma caixa
+   de busca no topo em vez de só depender de scroll/seções recolhíveis — a lista real do usuário
+   tem 40 entradas em 8 categorias. Decisão explícita do usuário sobre o comportamento: as 8
+   seções continuam SEMPRE visíveis durante a busca (não somem se não tiverem resultado), só os
+   itens dentro de cada uma são filtrados — diferente do padrão mais comum de "esconder grupo sem
+   resultado" que a pesquisa também trouxe como opção, mas que o usuário não escolheu.
+
+2. **Progresso textual na sincronização**: pesquisa mostrou que rótulos de texto ("Enviando 2 de
+   5 arquivos") tranquilizam mais que um spinner silencioso, sobretudo em conexões lentas.
+   `ComprovantesSyncState` ganhou `enviados`/`totalParaSincronizar`, populados só por
+   `sincronizarTodos()` (a fila manual, a única longa o suficiente pra o rótulo valer a pena — a
+   retomada automática e o retry de um único arquivo continuam só com spinner).
+
+3. **Avisos de tipo/tamanho no upload**: conferido no código (`comprovante_upload_datasource.dart`)
+   que o seletor nativo já filtra por extensão, mas a tela nunca dizia isso, e não existia limite
+   de tamanho nenhum. Tooltip do botão de anexar agora lista os formatos aceitos, e um limite real
+   de 15MB foi adicionado em `ComprovantesController.selecionarEAnexar` (antes inexistente —
+   um arquivo gigante entrava sem aviso nenhum).
+
+**Fora de escopo por enquanto**: dark mode, navegação tipo "stepper"/breadcrumb entre os módulos,
+preview de arquivo antes do upload — não pesquisados a fundo ainda porque o usuário não os
+priorizou nesta rodada (ver pergunta feita com opções antes de implementar).

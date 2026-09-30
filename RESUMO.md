@@ -4,6 +4,13 @@ voltar. Novo `VoltarAppBarButton` reutilizável, apontando pra rota-pai lógica 
 Comprovantes → Importar currículo). Testado ao vivo em 4 das 6 telas (as 2 restantes usam o
 mesmo padrão, sem teste ao vivo por exigirem montar um dossiê completo).
 
+**Três melhorias de UX/UI, pesquisadas (Material Design 3, padrões de mercado) e confirmadas
+contra o código antes de implementar, por instrução explícita do usuário**: busca por
+nome/instituição na tela de Comprovantes (mantendo as 8 seções sempre visíveis, só filtrando
+itens dentro — decisão explícita do usuário); rótulo textual "Enviando X de Y arquivos..." durante
+a sincronização manual, em vez de só um spinner; e avisos de formato/tamanho no botão de anexar,
+com um limite real de 15MB que antes não existia.
+
 # Resumo da entrega (Módulos 1-4 têm implementação real; nenhum testado ao vivo ainda)
 
 **Login "Continuar com Google" testado ao vivo pela primeira vez, e confirmado funcionando** —
