@@ -115,6 +115,15 @@ class LattesXmlParser {
   // ---------------------------------------------------------------------
 
   static const Map<String, NivelCurso> _tagsNivelFormacao = {
+    // ATENÇÃO: 'ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE' é a melhor
+    // hipótese pra tag de curso técnico no schema do CNPq, mas NÃO foi
+    // confirmada contra um XML real ainda (diferente das outras tags desta
+    // lista, todas já confirmadas — ver DECISOES.md). Se um XML real tiver
+    // curso técnico e ele não aparecer em "Técnico" na tela, essa é a
+    // primeira coisa a conferir (nome real da tag, e se ela tem outro
+    // atributo além de NOME-CURSO/NOME-INSTITUICAO/ANO-DE-INICIO/
+    // ANO-DE-CONCLUSAO/STATUS-DO-CURSO usados abaixo).
+    'ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE': NivelCurso.tecnico,
     'GRADUACAO': NivelCurso.graduacao,
     'ESPECIALIZACAO': NivelCurso.especializacao,
     'MESTRADO': NivelCurso.mestrado,

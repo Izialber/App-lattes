@@ -1,11 +1,12 @@
 import 'package:equatable/equatable.dart';
 
 enum NivelCurso {
+  tecnico,
   graduacao,
-  especializacao,
-  mestrado,
-  doutorado,
-  posDoutorado,
+  especializacao, // pós-graduação lato sensu
+  mestrado, // pós-graduação stricto sensu
+  doutorado, // pós-graduação stricto sensu
+  posDoutorado, // pós-graduação stricto sensu
   cursoCurta, // curso de extensão/capacitação curta duração
   outro,
 }

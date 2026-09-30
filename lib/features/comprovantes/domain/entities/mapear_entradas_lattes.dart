@@ -3,15 +3,44 @@ import '../../../lattes_parser/domain/entities/curso.dart';
 import 'categoria_entrada_lattes.dart';
 import 'entrada_lattes_ref.dart';
 
-/// `curriculo.cursos` mistura formação acadêmica de verdade (graduação,
-/// mestrado, doutorado etc.) com formação complementar (cursos de curta
-/// duração) num único campo — refletindo como o parser lê o XML do Lattes
-/// (`FORMACAO-ACADEMICA-TITULACAO` e `FORMACAO-COMPLEMENTAR` são seções
-/// tecnicamente diferentes no schema, mas ambas viram `Curso` com `nivel`
-/// distinguindo as duas). Achado ao vivo: as duas apareciam juntas numa
-/// seção só de "Formação acadêmica" — errado, são coisas diferentes pra
-/// quem está montando uma Prova de Títulos. Separadas aqui por `nivel`.
-bool _ehFormacaoComplementar(Curso c) => c.nivel == NivelCurso.cursoCurta;
+/// `curriculo.cursos` junta todo nível de formação (técnico, graduação,
+/// pós lato/stricto sensu, formação complementar) num único campo — reflete
+/// como o parser lê o XML do Lattes, que também mistura essas seções.
+/// Achado ao vivo, em duas rodadas: primeiro formação complementar
+/// aparecendo junto da acadêmica (separada por `nivel == cursoCurta`);
+/// depois pedido explícito do usuário pra discriminar também dentro da
+/// formação acadêmica em si — técnico, graduação, pós lato sensu
+/// (especialização) e pós stricto sensu (mestrado/doutorado/pós-doutorado)
+/// são coisas diferentes pra quem está montando uma Prova de Títulos.
+CategoriaEntradaLattes _categoriaDoCurso(Curso c) => switch (c.nivel) {
+      NivelCurso.tecnico => CategoriaEntradaLattes.tecnico,
+      NivelCurso.graduacao => CategoriaEntradaLattes.curso,
+      NivelCurso.especializacao => CategoriaEntradaLattes.posLatoSensu,
+      NivelCurso.mestrado ||
+      NivelCurso.doutorado ||
+      NivelCurso.posDoutorado =>
+        CategoriaEntradaLattes.posStrictoSensu,
+      NivelCurso.cursoCurta => CategoriaEntradaLattes.formacaoComplementar,
+      // `outro` não tem seção própria no Lattes real (nunca emitido pelo
+      // parser hoje) — cai em formação complementar como fallback mais
+      // seguro em vez de se perder ou quebrar.
+      NivelCurso.outro => CategoriaEntradaLattes.formacaoComplementar,
+    };
+
+EntradaLattesRef _entradaDoCurso(Curso c) {
+  final categoria = _categoriaDoCurso(c);
+  return EntradaLattesRef(
+    id: gerarIdEntrada(categoria, [c.nivel.name, c.nomeCurso, c.instituicao, c.anoConclusao]),
+    categoria: categoria,
+    titulo: c.nomeCurso,
+    subtitulo: [
+      if (c.instituicao != null) c.instituicao!,
+      if (c.anoInicio != null || c.anoConclusao != null)
+        '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
+      if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
+    ].join(' · '),
+  );
+}
 
 /// Converte o currículo importado (Módulo 1) numa lista achatada de
 /// [EntradaLattesRef], na MESMA ORDEM em que cada seção e cada item aparecem
@@ -23,34 +52,14 @@ bool _ehFormacaoComplementar(Curso c) => c.nivel == NivelCurso.cursoCurta;
 /// importação. `areasDeAtuacao` fica de fora (ver `CategoriaEntradaLattes`).
 List<EntradaLattesRef> gerarEntradasLattes(CurriculoLattes curriculo) {
   return [
-    ...curriculo.cursos.where((c) => !_ehFormacaoComplementar(c)).map((c) => EntradaLattesRef(
-          id: gerarIdEntrada(
-            CategoriaEntradaLattes.curso,
-            [c.nivel.name, c.nomeCurso, c.instituicao, c.anoConclusao],
-          ),
-          categoria: CategoriaEntradaLattes.curso,
-          titulo: c.nomeCurso,
-          subtitulo: [
-            if (c.instituicao != null) c.instituicao!,
-            if (c.anoInicio != null || c.anoConclusao != null)
-              '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
-            if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
-          ].join(' · '),
-        )),
-    ...curriculo.cursos.where(_ehFormacaoComplementar).map((c) => EntradaLattesRef(
-          id: gerarIdEntrada(
-            CategoriaEntradaLattes.formacaoComplementar,
-            [c.nivel.name, c.nomeCurso, c.instituicao, c.anoConclusao],
-          ),
-          categoria: CategoriaEntradaLattes.formacaoComplementar,
-          titulo: c.nomeCurso,
-          subtitulo: [
-            if (c.instituicao != null) c.instituicao!,
-            if (c.anoInicio != null || c.anoConclusao != null)
-              '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
-            if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
-          ].join(' · '),
-        )),
+    for (final categoria in [
+      CategoriaEntradaLattes.tecnico,
+      CategoriaEntradaLattes.curso,
+      CategoriaEntradaLattes.posLatoSensu,
+      CategoriaEntradaLattes.posStrictoSensu,
+      CategoriaEntradaLattes.formacaoComplementar,
+    ])
+      ...curriculo.cursos.where((c) => _categoriaDoCurso(c) == categoria).map(_entradaDoCurso),
     ...curriculo.experienciasProfissionais.map((e) => EntradaLattesRef(
           id: gerarIdEntrada(
             CategoriaEntradaLattes.experienciaProfissional,

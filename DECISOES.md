@@ -1027,7 +1027,15 @@ Antes disto funcionar de ponta a ponta, no Firebase Console do projeto `certific
 3. Criar manualmente a conta admin em Authentication → Users → Add user (izialber@gmail.com +
    senha à escolha) — pelo problema do ovo e da galinha explicado no ponto 3 acima.
 
-Ainda não testado ao vivo — depende desses 3 passos manuais serem feitos primeiro.
+**Testado ao vivo de ponta a ponta, com sucesso, depois dos 3 passos manuais**: Firestore ativado
+em `southamerica-east1`, regras publicadas via editor do Console (colado via clipboard, não
+digitado — o editor duplica chaves/parênteses em auto-fechamento se digitado caractere a
+caractere), conta admin já existia de um teste anterior desta mesma sessão. Depois do bug de
+roteamento abaixo corrigido: login de admin confirmado, geração de código confirmada
+(`4UF9YBFR`, rótulo "teste ao vivo"), e o resgate completo confirmado direto no Firestore —
+`codigos/4UF9YBFR` virou `usado: true`, `usadoPara: "teste-codigo-convite@example.com"` depois de
+uma conta de teste ser criada com esse código pelo formulário "Criar conta". Ciclo completo
+validado: admin gera código → usuário resgata → conta criada → código não pode ser reusado.
 
 ## Bug achado ao vivo: /admin/codigos bloqueada pelo gate do login Google (2026-09-30)
 
@@ -1076,3 +1084,31 @@ real antes do fix.
 
 Teste novo cobrindo a separação em `entrada_lattes_ref_test.dart` (domínio puro, sem depender de
 SDK Flutter). Ainda não testado ao vivo com um XML real.
+
+## Discriminar técnico/graduação/pós lato sensu/pós stricto sensu (2026-09-30)
+
+Pedido do usuário, continuação natural do bug acima: dentro de "Formação acadêmica", técnico,
+graduação, pós-graduação lato sensu (especialização) e pós-graduação stricto sensu (mestrado/
+doutorado/pós-doutorado) são coisas diferentes pra uma Prova de Títulos, e estavam todas juntas
+numa seção só.
+
+`NivelCurso` ganhou o valor `tecnico`. `CategoriaEntradaLattes.curso` teve seu SIGNIFICADO restrito
+(passa a valer só pra graduação; rótulo mudou de "Formação acadêmica" para "Graduação") mas o NOME
+do valor do enum foi mantido de propósito — `gerarIdEntrada` usa `categoria.name` como parte do
+hash do id, então manter o nome evita orfanizar comprovantes já anexados a entradas de graduação
+(só especialização/mestrado/doutorado, que migram pra categorias novas, ficam órfãos na próxima
+reimportação — mesmo trade-off já aceito no bug anterior). Duas categorias novas:
+`posLatoSensu`/`posStrictoSensu`. `_categoriaDoCurso` (`mapear_entradas_lattes.dart`) centraliza o
+mapeamento `NivelCurso` → `CategoriaEntradaLattes` num switch exaustivo, usado tanto pra gerar o id
+quanto a categoria de cada entrada; `curriculo_list_view.dart` espelha a mesma classificação.
+
+**Pergunta feita ao usuário antes de implementar**: curso técnico aparece hoje em algum lugar do
+app (mal categorizado) ou não aparece em lugar nenhum? Resposta: não aparece em lugar nenhum —
+confirma que o parser nunca leu essa seção do XML. **Risco assumido, não confirmado contra XML
+real**: a tag adicionada em `_tagsNivelFormacao`
+(`ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE`) é a melhor hipótese pro schema do CNPq, mas —
+diferente de toda outra tag desta lista, todas já confirmadas contra XML real do usuário — essa
+não foi. Se não aparecer nenhuma entrada em "Técnico" ao reimportar um XML que deveria ter curso
+técnico, essa tag é a primeira coisa a revisar (comentário deixado no código apontando isso).
+
+Ainda não testado ao vivo.

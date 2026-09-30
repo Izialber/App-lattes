@@ -31,6 +31,12 @@ curta duração) aparecia misturada dentro da seção "Formação acadêmica" �
 seções certo do XML, só a exibição/categorização achatava as duas juntas. Corrigido: vira seção
 própria (tela de importação e de Comprovantes), com subpasta própria no Drive automaticamente.
 
+**Formação acadêmica discriminada em técnico/graduação/pós lato sensu/pós stricto sensu** —
+pedido de continuação do achado acima. Técnico é uma seção nova que nunca existiu antes (o parser
+não lia essa parte do XML) — a tag usada (`ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE`) é a melhor
+hipótese pro schema, mas ainda NÃO confirmada contra um XML real, diferente de todo o resto do
+parser. Ainda não testado ao vivo.
+
 # Resumo da entrega (Módulos 1-4 têm implementação real; nenhum testado ao vivo ainda)
 
 **Login "Continuar com Google" testado ao vivo pela primeira vez, e confirmado funcionando** —

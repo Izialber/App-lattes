@@ -24,50 +24,50 @@ class CurriculoListView extends ConsumerWidget {
         final tamanho = screenSizeFor(constraints.maxWidth);
         final duasColunas = tamanho == ScreenSize.expanded || tamanho == ScreenSize.large;
 
-        // `curriculo.cursos` mistura formação acadêmica de verdade
-        // (graduação/mestrado/doutorado etc.) com formação complementar
-        // (cursos de curta duração) — achado ao vivo: apareciam juntos
-        // numa seção só, errado pra quem monta uma Prova de Títulos. Ver
+        // `curriculo.cursos` junta todo nível de formação num único campo —
+        // achado ao vivo em duas rodadas: primeiro formação complementar
+        // misturada com a acadêmica, depois pedido do usuário pra também
+        // discriminar dentro da acadêmica (técnico/graduação/pós lato/pós
+        // stricto sensu são coisas diferentes pra uma Prova de Títulos). Ver
         // `mapear_entradas_lattes.dart` (mesma separação usada lá).
-        final formacaoAcademica =
-            curriculo.cursos.where((c) => c.nivel != NivelCurso.cursoCurta).toList();
-        final formacaoComplementar =
-            curriculo.cursos.where((c) => c.nivel == NivelCurso.cursoCurta).toList();
+        final gruposDeFormacao = {
+          'Técnico': curriculo.cursos.where((c) => c.nivel == NivelCurso.tecnico).toList(),
+          'Graduação': curriculo.cursos.where((c) => c.nivel == NivelCurso.graduacao).toList(),
+          'Pós-graduação lato sensu':
+              curriculo.cursos.where((c) => c.nivel == NivelCurso.especializacao).toList(),
+          'Pós-graduação stricto sensu': curriculo.cursos
+              .where((c) => [NivelCurso.mestrado, NivelCurso.doutorado, NivelCurso.posDoutorado]
+                  .contains(c.nivel))
+              .toList(),
+          'Formação complementar': curriculo.cursos
+              .where((c) => [NivelCurso.cursoCurta, NivelCurso.outro].contains(c.nivel))
+              .toList(),
+        };
 
         final secoes = [
           if (curriculo.temVinculosPendentesDeConfirmacao) _bannerConfirmacaoPendente(context),
           _secaoDadosGerais(context),
-          _secaoLista(
-            context,
-            titulo: 'Formação acadêmica (${formacaoAcademica.length})',
-            itens: formacaoAcademica
-                .map((c) => _ItemTile(
-                      titulo: c.nomeCurso,
-                      subtitulo: [
-                        if (c.instituicao != null) c.instituicao!,
-                        if (c.anoInicio != null || c.anoConclusao != null)
-                          '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
-                        if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
-                      ].join(' · '),
-                    ))
-                .toList(),
-          ),
-          if (formacaoComplementar.isNotEmpty)
-            _secaoLista(
-              context,
-              titulo: 'Formação complementar (${formacaoComplementar.length})',
-              itens: formacaoComplementar
-                  .map((c) => _ItemTile(
-                        titulo: c.nomeCurso,
-                        subtitulo: [
-                          if (c.instituicao != null) c.instituicao!,
-                          if (c.anoInicio != null || c.anoConclusao != null)
-                            '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
-                          if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
-                        ].join(' · '),
-                      ))
-                  .toList(),
-            ),
+          for (final grupo in gruposDeFormacao.entries)
+            // "Graduação" sempre aparece (mesmo vazia), mesmo comportamento
+            // que a antiga seção única "Formação acadêmica" já tinha; os
+            // demais níveis só aparecem quando há pelo menos uma entrada —
+            // nem todo currículo tem técnico ou pós, por exemplo.
+            if (grupo.key == 'Graduação' || grupo.value.isNotEmpty)
+              _secaoLista(
+                context,
+                titulo: '${grupo.key} (${grupo.value.length})',
+                itens: grupo.value
+                    .map((c) => _ItemTile(
+                          titulo: c.nomeCurso,
+                          subtitulo: [
+                            if (c.instituicao != null) c.instituicao!,
+                            if (c.anoInicio != null || c.anoConclusao != null)
+                              '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
+                            if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
+                          ].join(' · '),
+                        ))
+                    .toList(),
+              ),
           _secaoExperiencias(context, ref),
           _secaoLista(
             context,

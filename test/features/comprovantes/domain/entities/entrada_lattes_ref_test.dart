@@ -95,7 +95,7 @@ void main() {
         cursos: const [
           Curso(nivel: NivelCurso.graduacao, nomeCurso: 'Licenciatura'),
           Curso(nivel: NivelCurso.cursoCurta, nomeCurso: 'Workshop de X'),
-          Curso(nivel: NivelCurso.mestrado, nomeCurso: 'Mestrado em Y'),
+          Curso(nivel: NivelCurso.graduacao, nomeCurso: 'Engenharia'),
           Curso(nivel: NivelCurso.cursoCurta, nomeCurso: 'Bootcamp de Z'),
         ],
       );
@@ -105,8 +105,31 @@ void main() {
       final complementares =
           entradas.where((e) => e.categoria == CategoriaEntradaLattes.formacaoComplementar).toList();
 
-      expect(academicas.map((e) => e.titulo), ['Licenciatura', 'Mestrado em Y']);
+      expect(academicas.map((e) => e.titulo), ['Licenciatura', 'Engenharia']);
       expect(complementares.map((e) => e.titulo), ['Workshop de X', 'Bootcamp de Z']);
+    });
+
+    test('discrimina técnico, graduação, pós lato sensu e pós stricto sensu', () {
+      final curriculo = CurriculoLattes(
+        nomeCompleto: 'Fulano',
+        cursos: const [
+          Curso(nivel: NivelCurso.tecnico, nomeCurso: 'Técnico em Informática'),
+          Curso(nivel: NivelCurso.graduacao, nomeCurso: 'Licenciatura'),
+          Curso(nivel: NivelCurso.especializacao, nomeCurso: 'MBA em Gestão'),
+          Curso(nivel: NivelCurso.mestrado, nomeCurso: 'Mestrado em Y'),
+          Curso(nivel: NivelCurso.doutorado, nomeCurso: 'Doutorado em Z'),
+        ],
+      );
+
+      final entradas = gerarEntradasLattes(curriculo);
+      CategoriaEntradaLattes categoriaDe(String titulo) =>
+          entradas.firstWhere((e) => e.titulo == titulo).categoria;
+
+      expect(categoriaDe('Técnico em Informática'), CategoriaEntradaLattes.tecnico);
+      expect(categoriaDe('Licenciatura'), CategoriaEntradaLattes.curso);
+      expect(categoriaDe('MBA em Gestão'), CategoriaEntradaLattes.posLatoSensu);
+      expect(categoriaDe('Mestrado em Y'), CategoriaEntradaLattes.posStrictoSensu);
+      expect(categoriaDe('Doutorado em Z'), CategoriaEntradaLattes.posStrictoSensu);
     });
   });
 }

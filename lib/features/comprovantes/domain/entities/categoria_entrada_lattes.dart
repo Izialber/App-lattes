@@ -3,7 +3,12 @@
 /// item individual com um comprovante natural, ao contrário das demais
 /// seções (ver DECISOES.md).
 enum CategoriaEntradaLattes {
-  curso,
+  tecnico,
+  curso, // graduação — nome do valor mantido por compatibilidade de id
+  // (ver gerarIdEntrada), só especialização/mestrado/doutorado/pós-doutorado
+  // saíram daqui pras duas categorias novas abaixo (ver DECISOES.md).
+  posLatoSensu,
+  posStrictoSensu,
   formacaoComplementar,
   experienciaProfissional,
   publicacao,
@@ -19,7 +24,10 @@ enum CategoriaEntradaLattes {
 /// (nome da subpasta por categoria, ver `ComprovantesSyncController`).
 extension CategoriaEntradaLattesRotulo on CategoriaEntradaLattes {
   String get rotulo => switch (this) {
-        CategoriaEntradaLattes.curso => 'Formação acadêmica',
+        CategoriaEntradaLattes.tecnico => 'Técnico',
+        CategoriaEntradaLattes.curso => 'Graduação',
+        CategoriaEntradaLattes.posLatoSensu => 'Pós-graduação lato sensu',
+        CategoriaEntradaLattes.posStrictoSensu => 'Pós-graduação stricto sensu',
         CategoriaEntradaLattes.formacaoComplementar => 'Formação complementar',
         CategoriaEntradaLattes.experienciaProfissional => 'Experiência profissional',
         CategoriaEntradaLattes.publicacao => 'Produção bibliográfica',
