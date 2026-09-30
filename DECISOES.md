@@ -748,3 +748,23 @@ UI: cada entrada mostra o botão de upload sempre disponível (não trocava mais
 "anexar"/"substituir"), e abaixo dele a lista dos arquivos já anexados, cada um com seu próprio
 baixar/remover. Achado de teste ao vivo, não de revisão de código — mesmo padrão de correção
 "acha na prática, corrige na hora" desta sessão.
+
+## Seções recolhíveis, progresso geral e reimportação do XML (2026-09-30)
+
+Mais achados do mesmo teste ao vivo, pela razão que o usuário deu: "não vai ser possível pra
+alguém entrar com todos os certificados de uma vez" — um currículo real tem 30-40+ entradas
+espalhadas por 8 categorias, preenchidas aos poucos, em várias sessões. Três ajustes:
+
+1. Cada seção de categoria virou um `ExpansionTile` (recolhível), aberta por padrão, com
+   contagem "X de Y com comprovante" no subtítulo — deixa de ser uma parede de itens expandidos
+   o tempo todo.
+2. Cabeçalho fixo no topo da tela com o progresso geral ("X de Y entradas com comprovante,
+   Z%") + barra de progresso. Isto é o mesmo recurso que eu tinha proposto no desenho original
+   e o usuário cortou por escopo na época — voltou a fazer sentido depois de ver a tela real com
+   quase 40 entradas.
+3. Botão na AppBar de Comprovantes pra voltar direto pra tela de importação do Lattes
+   (`AppRoutes.importarLattes`), de onde dá pra reimportar um XML atualizado (botão "Importar
+   outro XML" já existia lá, só não tinha como chegar nele a partir da tela de comprovantes).
+   Reimportar já atualiza as entradas e preserva os comprovantes já anexados pelas entradas que
+   não mudaram (via id estável) — as que mudaram/sumiram viram órfãs, mecanismo que já existia
+   desde o desenho original.

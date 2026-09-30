@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/platform/download/browser_download_web.dart';
+import '../../../../core/routing/app_router.dart';
 import '../../domain/entities/categoria_entrada_lattes.dart';
 import '../../domain/entities/entrada_lattes_ref.dart';
 import '../providers/comprovantes_providers.dart';
@@ -31,7 +33,16 @@ class ComprovantesLattesPage extends ConsumerWidget {
     final estado = ref.watch(comprovantesControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Comprovantes')),
+      appBar: AppBar(
+        title: const Text('Comprovantes'),
+        actions: [
+          IconButton(
+            tooltip: 'Importar XML atualizado do Lattes',
+            icon: const Icon(Icons.upload_file_outlined),
+            onPressed: () => context.go(AppRoutes.importarLattes),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           if (estado.erro != null)
@@ -46,6 +57,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
                 ),
               ],
             ),
+          if (estado.entradas.isNotEmpty) _cabecalhoProgresso(context, estado),
           Expanded(
             child: estado.entradas.isEmpty
                 ? const Center(
@@ -71,6 +83,43 @@ class ComprovantesLattesPage extends ConsumerWidget {
     );
   }
 
+  /// Quantas entradas (de qualquer categoria) já têm pelo menos um
+  /// comprovante anexado — usado tanto no cabeçalho geral quanto no título
+  /// de cada seção, pra dar visibilidade de progresso num currículo que
+  /// pode ter dezenas de entradas (ninguém preenche tudo numa sessão só).
+  int _concluidas(ComprovantesState estado, Iterable<EntradaLattesRef> entradas) {
+    return entradas.where((e) => estado.comprovantes[e.id]?.isNotEmpty ?? false).length;
+  }
+
+  Widget _cabecalhoProgresso(BuildContext context, ComprovantesState estado) {
+    final total = estado.entradas.length;
+    final concluidas = _concluidas(estado, estado.entradas);
+    final fracao = total == 0 ? 0.0 : concluidas / total;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$concluidas de $total entradas com comprovante (${(fracao * 100).round()}%)',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(value: fracao, minHeight: 6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Seção recolhível (uma por categoria) — currículos grandes têm dezenas
+  /// de entradas espalhadas por 8 categorias, ninguém consegue (nem
+  /// precisa) ver tudo expandido ao mesmo tempo. Aberta por padrão porque é
+  /// o comportamento que a tela já tinha antes disto existir; o usuário
+  /// recolhe as seções que já terminou.
   Widget _secao(
     BuildContext context,
     WidgetRef ref,
@@ -80,21 +129,22 @@ class ComprovantesLattesPage extends ConsumerWidget {
     final entradas = estado.entradas.where((e) => e.categoria == categoria).toList();
     if (entradas.isEmpty) return const SizedBox.shrink();
 
+    final concluidas = _concluidas(estado, entradas);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${_rotuloCategoria[categoria]} (${entradas.length})',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            for (final entrada in entradas) _linhaEntrada(context, ref, estado, entrada),
-          ],
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Text(
+          '${_rotuloCategoria[categoria]} (${entradas.length})',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('$concluidas de ${entradas.length} com comprovante'),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        children: [
+          for (final entrada in entradas) _linhaEntrada(context, ref, estado, entrada),
+        ],
       ),
     );
   }

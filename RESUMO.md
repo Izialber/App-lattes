@@ -27,6 +27,10 @@ entrada pode precisar de mais de um arquivo (ex.: diploma + histórico do mesmo 
 de persistência deixou de ser `entradaId`), `anexar()` nunca mais substitui, e a tela mostra a
 lista de arquivos já anexados por entrada, cada um com seu baixar/remover.
 
+Ainda no mesmo teste ao vivo: seções da tela de Comprovantes viraram recolhíveis (currículo real
+tem 30-40+ entradas, ninguém preenche tudo de uma vez), ganhou um cabeçalho com % de conclusão
+geral, e um botão na AppBar pra voltar e reimportar um XML atualizado do Lattes.
+
 **LLM compartilhado (`llm_shared`) também ficou real** (usado pelo Módulo 2 antigo e pelo Módulo
 4 — o Módulo 2 novo, descrito acima, não usa LLM nenhum): `GeminiLlmDatasource` e
 `OpenAiLlmDatasource` fazem chamadas HTTP de verdade (Dio) para as respectivas APIs, com
