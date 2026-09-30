@@ -1,6 +1,17 @@
 import '../../../lattes_parser/domain/entities/curriculo_lattes.dart';
+import '../../../lattes_parser/domain/entities/curso.dart';
 import 'categoria_entrada_lattes.dart';
 import 'entrada_lattes_ref.dart';
+
+/// `curriculo.cursos` mistura formação acadêmica de verdade (graduação,
+/// mestrado, doutorado etc.) com formação complementar (cursos de curta
+/// duração) num único campo — refletindo como o parser lê o XML do Lattes
+/// (`FORMACAO-ACADEMICA-TITULACAO` e `FORMACAO-COMPLEMENTAR` são seções
+/// tecnicamente diferentes no schema, mas ambas viram `Curso` com `nivel`
+/// distinguindo as duas). Achado ao vivo: as duas apareciam juntas numa
+/// seção só de "Formação acadêmica" — errado, são coisas diferentes pra
+/// quem está montando uma Prova de Títulos. Separadas aqui por `nivel`.
+bool _ehFormacaoComplementar(Curso c) => c.nivel == NivelCurso.cursoCurta;
 
 /// Converte o currículo importado (Módulo 1) numa lista achatada de
 /// [EntradaLattesRef], na MESMA ORDEM em que cada seção e cada item aparecem
@@ -12,12 +23,26 @@ import 'entrada_lattes_ref.dart';
 /// importação. `areasDeAtuacao` fica de fora (ver `CategoriaEntradaLattes`).
 List<EntradaLattesRef> gerarEntradasLattes(CurriculoLattes curriculo) {
   return [
-    ...curriculo.cursos.map((c) => EntradaLattesRef(
+    ...curriculo.cursos.where((c) => !_ehFormacaoComplementar(c)).map((c) => EntradaLattesRef(
           id: gerarIdEntrada(
             CategoriaEntradaLattes.curso,
             [c.nivel.name, c.nomeCurso, c.instituicao, c.anoConclusao],
           ),
           categoria: CategoriaEntradaLattes.curso,
+          titulo: c.nomeCurso,
+          subtitulo: [
+            if (c.instituicao != null) c.instituicao!,
+            if (c.anoInicio != null || c.anoConclusao != null)
+              '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
+            if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
+          ].join(' · '),
+        )),
+    ...curriculo.cursos.where(_ehFormacaoComplementar).map((c) => EntradaLattesRef(
+          id: gerarIdEntrada(
+            CategoriaEntradaLattes.formacaoComplementar,
+            [c.nivel.name, c.nomeCurso, c.instituicao, c.anoConclusao],
+          ),
+          categoria: CategoriaEntradaLattes.formacaoComplementar,
           titulo: c.nomeCurso,
           subtitulo: [
             if (c.instituicao != null) c.instituicao!,

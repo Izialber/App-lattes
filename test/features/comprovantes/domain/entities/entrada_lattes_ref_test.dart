@@ -88,5 +88,25 @@ void main() {
 
       expect(ids1, ids2);
     });
+
+    test('separa formação acadêmica de formação complementar (cursoCurta)', () {
+      final curriculo = CurriculoLattes(
+        nomeCompleto: 'Fulano',
+        cursos: const [
+          Curso(nivel: NivelCurso.graduacao, nomeCurso: 'Licenciatura'),
+          Curso(nivel: NivelCurso.cursoCurta, nomeCurso: 'Workshop de X'),
+          Curso(nivel: NivelCurso.mestrado, nomeCurso: 'Mestrado em Y'),
+          Curso(nivel: NivelCurso.cursoCurta, nomeCurso: 'Bootcamp de Z'),
+        ],
+      );
+
+      final entradas = gerarEntradasLattes(curriculo);
+      final academicas = entradas.where((e) => e.categoria == CategoriaEntradaLattes.curso).toList();
+      final complementares =
+          entradas.where((e) => e.categoria == CategoriaEntradaLattes.formacaoComplementar).toList();
+
+      expect(academicas.map((e) => e.titulo), ['Licenciatura', 'Mestrado em Y']);
+      expect(complementares.map((e) => e.titulo), ['Workshop de X', 'Bootcamp de Z']);
+    });
   });
 }

@@ -4,6 +4,7 @@
 /// seções (ver DECISOES.md).
 enum CategoriaEntradaLattes {
   curso,
+  formacaoComplementar,
   experienciaProfissional,
   publicacao,
   orientacao,
@@ -19,6 +20,7 @@ enum CategoriaEntradaLattes {
 extension CategoriaEntradaLattesRotulo on CategoriaEntradaLattes {
   String get rotulo => switch (this) {
         CategoriaEntradaLattes.curso => 'Formação acadêmica',
+        CategoriaEntradaLattes.formacaoComplementar => 'Formação complementar',
         CategoriaEntradaLattes.experienciaProfissional => 'Experiência profissional',
         CategoriaEntradaLattes.publicacao => 'Produção bibliográfica',
         CategoriaEntradaLattes.orientacao => 'Orientações',

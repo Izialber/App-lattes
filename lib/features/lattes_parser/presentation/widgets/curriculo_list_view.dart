@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/utils/breakpoints.dart';
 import '../../domain/entities/curriculo_lattes.dart';
+import '../../domain/entities/curso.dart';
 import '../../domain/entities/experiencia_profissional.dart';
 import '../providers/lattes_providers.dart';
 
@@ -23,13 +24,23 @@ class CurriculoListView extends ConsumerWidget {
         final tamanho = screenSizeFor(constraints.maxWidth);
         final duasColunas = tamanho == ScreenSize.expanded || tamanho == ScreenSize.large;
 
+        // `curriculo.cursos` mistura formação acadêmica de verdade
+        // (graduação/mestrado/doutorado etc.) com formação complementar
+        // (cursos de curta duração) — achado ao vivo: apareciam juntos
+        // numa seção só, errado pra quem monta uma Prova de Títulos. Ver
+        // `mapear_entradas_lattes.dart` (mesma separação usada lá).
+        final formacaoAcademica =
+            curriculo.cursos.where((c) => c.nivel != NivelCurso.cursoCurta).toList();
+        final formacaoComplementar =
+            curriculo.cursos.where((c) => c.nivel == NivelCurso.cursoCurta).toList();
+
         final secoes = [
           if (curriculo.temVinculosPendentesDeConfirmacao) _bannerConfirmacaoPendente(context),
           _secaoDadosGerais(context),
           _secaoLista(
             context,
-            titulo: 'Formação acadêmica (${curriculo.cursos.length})',
-            itens: curriculo.cursos
+            titulo: 'Formação acadêmica (${formacaoAcademica.length})',
+            itens: formacaoAcademica
                 .map((c) => _ItemTile(
                       titulo: c.nomeCurso,
                       subtitulo: [
@@ -41,6 +52,22 @@ class CurriculoListView extends ConsumerWidget {
                     ))
                 .toList(),
           ),
+          if (formacaoComplementar.isNotEmpty)
+            _secaoLista(
+              context,
+              titulo: 'Formação complementar (${formacaoComplementar.length})',
+              itens: formacaoComplementar
+                  .map((c) => _ItemTile(
+                        titulo: c.nomeCurso,
+                        subtitulo: [
+                          if (c.instituicao != null) c.instituicao!,
+                          if (c.anoInicio != null || c.anoConclusao != null)
+                            '${c.anoInicio ?? '?'}–${c.anoConclusao ?? 'atual'}',
+                          if (c.cargaHorariaHoras != null) '${c.cargaHorariaHoras}h',
+                        ].join(' · '),
+                      ))
+                  .toList(),
+            ),
           _secaoExperiencias(context, ref),
           _secaoLista(
             context,
