@@ -62,8 +62,17 @@ class _AuthRouterRefresh extends ChangeNotifier {
 /// Rotas que não exigem sessão ativa — o gate de autenticação nunca redireciona
 /// para longe delas por conta própria (a navegação de saída delas é sempre
 /// explícita: [LoginPage] ao logar, [OAuthCallbackPage] ao terminar de processar).
+/// [AppRoutes.adminCodigos] entra aqui por um motivo diferente das outras
+/// duas: ela tem seu PRÓPRIO gate (sessão Firebase Auth do admin,
+/// independente do `AuthController` geral — ver `AdminCodigosPage`), então
+/// o router nunca deve bloqueá-la com base no `AuthState` do resto do app
+/// (achado testando ao vivo: sem isso, uma sessão Google "pendente de
+/// código" ou sem login nenhum expulsava o admin antes mesmo de ele ver o
+/// formulário de login da própria página).
 bool _rotaPublica(String location) =>
-    location == AppRoutes.login || location == AppRoutes.oauthCallback;
+    location == AppRoutes.login ||
+    location == AppRoutes.oauthCallback ||
+    location == AppRoutes.adminCodigos;
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final refresh = _AuthRouterRefresh(ref);
@@ -82,7 +91,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           // Login Google concluído, mas falta resgatar o código de convite
           // (ver DECISOES.md) — trava em /login/codigo até isso resolver,
           // antes mesmo da checagem geral de autenticado/não-autenticado.
-          if (value is AuthPendenteCodigo) {
+          // Exceção: /admin/codigos tem seu PRÓPRIO gate (sessão Firebase
+          // Auth do admin, independente do login Google do resto do app —
+          // ver AdminCodigosPage) — sem essa exceção, uma sessão Google
+          // pendente de código bloquearia o admin de entrar mesmo já
+          // autenticado como admin via Firebase. Achado testando ao vivo.
+          if (value is AuthPendenteCodigo && state.matchedLocation != AppRoutes.adminCodigos) {
             return state.matchedLocation == AppRoutes.codigoPendente
                 ? null
                 : AppRoutes.codigoPendente;

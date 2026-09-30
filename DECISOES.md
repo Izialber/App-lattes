@@ -1029,6 +1029,24 @@ Antes disto funcionar de ponta a ponta, no Firebase Console do projeto `certific
 
 Ainda não testado ao vivo — depende desses 3 passos manuais serem feitos primeiro.
 
+## Bug achado ao vivo: /admin/codigos bloqueada pelo gate do login Google (2026-09-30)
+
+Depois dos 3 passos manuais (Firestore ativado, regras publicadas, conta admin já existia de um
+teste anterior), primeiro teste ao vivo de `/admin/codigos` falhou: caía direto em
+`/login/codigo` em vez de mostrar o formulário de login do admin. Causa: o `redirect` do router
+checava `AuthPendenteCodigo` (sessão Google sem código resgatado) e forçava `/login/codigo` de
+forma incondicional, sem saber que `/admin/codigos` tem seu PRÓPRIO gate via Firebase Auth,
+independente do login Google do resto do app (ver seção acima). Mesmo problema, de um jeito
+menor, pro caso de ninguém logado: `/admin/codigos` não estava em `_rotaPublica`, então o router
+também expulsava pra `/login` um visitante sem sessão nenhuma antes de ele ver o formulário.
+
+**Fix**: `/admin/codigos` entrou em `_rotaPublica` (o router nunca a bloqueia por conta do
+`AuthState` geral) + exceção explícita no branch de `AuthPendenteCodigo` pra não capturar essa
+rota. Correto ela ser "pública" do ponto de vista do router — a proteção de verdade continua
+sendo o gate interno da própria página (Firebase Auth) e as regras do Firestore, exatamente como
+já era o design original, só que o router estava atrapalhando antes de a página ter a chance de
+se proteger sozinha.
+
 ## Bug achado ao vivo: Formação complementar misturada com Formação acadêmica (2026-09-30)
 
 Usuário reportou, testando a importação de um XML real: "a formação acadêmica titulação está
