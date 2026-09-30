@@ -868,3 +868,26 @@ da página. Conferido também diretamente no Google Drive: os dois PDFs aparecer
 (`Diploma_-LICENCIATURA-EM-MATEMATICA-<hash>.pdf` e `Historico_-...-<hash>.pdf`). Organização por
 subpasta funcionando exatamente como desenhado. A integração do Módulo 3 com o módulo de
 comprovantes está confirmada funcionando ao vivo, não só revisada como texto.
+
+## Botão de voltar em todas as telas internas (2026-09-30)
+
+Usuário apontou um problema real: o app não tinha botão de voltar em lugar nenhum. Causa: a
+navegação inteira usa `context.go()` (substitui a rota atual, não empilha — ver comentário em
+`app_router.dart` sobre por que rotas de URL real foram escolhidas desde o início), então o
+`Navigator` nunca acumula uma pilha de verdade — o botão de voltar automático do `AppBar`
+(que só aparece quando `Navigator.canPop()` é verdadeiro) nunca apareceria sozinho.
+
+Fix: novo `VoltarAppBarButton` (`core/routing/voltar_app_bar_button.dart`), um `IconButton`
+reutilizável que recebe `rotaPai` (a rota lógica de origem daquela tela, não histórico de
+navegador) e chama `context.go(rotaPai)`. Adicionado como `leading` do `AppBar` em todas as
+telas internas, mapeado pelo fluxo real de navegação (quem tem um `context.go()` apontando pra
+cada uma): Comprovantes → `/importar-lattes`, Configurar LLM → `/importar-lattes`, Capturar
+certificados → `/importar-lattes`, Montar dossiê → `/certificados`, Revisar dossiê →
+`/dossie/novo`, Compilar dossiê → `/dossie/:id/checklist` (único caso com rota dinâmica, não
+`const`). `/importar-lattes` (home pós-login) e `/login`/`/oauth/callback` não recebem — são
+pontos de entrada, sem "pai" lógico.
+
+Testado ao vivo: os 4 casos com rota-pai estática (Comprovantes, Configurar LLM, Capturar
+certificados, Montar dossiê) confirmados navegando corretamente. Os 2 casos do checklist/compilar
+de dossiê não foram testados ao vivo (exigiriam montar um dossiê completo só pra isso) — mesmo
+padrão de widget já confirmado funcionando nos outros 4, revisado como texto.

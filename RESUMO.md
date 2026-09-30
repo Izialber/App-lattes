@@ -1,3 +1,9 @@
+**Botão de voltar adicionado em todas as telas internas** — o app navegava só com
+`context.go()` (substitui a rota, não empilha), então o Navigator nunca tinha uma pilha real de
+voltar. Novo `VoltarAppBarButton` reutilizável, apontando pra rota-pai lógica de cada tela (ex.:
+Comprovantes → Importar currículo). Testado ao vivo em 4 das 6 telas (as 2 restantes usam o
+mesmo padrão, sem teste ao vivo por exigirem montar um dossiê completo).
+
 # Resumo da entrega (Módulos 1-4 têm implementação real; nenhum testado ao vivo ainda)
 
 **Login "Continuar com Google" testado ao vivo pela primeira vez, e confirmado funcionando** —
