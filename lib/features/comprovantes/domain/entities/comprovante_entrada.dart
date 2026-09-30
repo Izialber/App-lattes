@@ -2,11 +2,15 @@ import 'package:equatable/equatable.dart';
 
 import 'categoria_entrada_lattes.dart';
 
-/// Registro de que uma entrada do Lattes (`entradaId`, ver
-/// `EntradaLattesRef`/`gerarIdEntrada`) já tem um arquivo de comprovação
-/// anexado. Os bytes ficam numa box Hive separada (mesmo padrão de
-/// `CertificateLocalStore`), não aqui — este é só o metadado.
+/// Um arquivo de comprovação anexado a uma entrada do Lattes (`entradaId`,
+/// ver `EntradaLattesRef`/`gerarIdEntrada`). Uma entrada pode ter vários
+/// comprovantes (ex.: diploma + histórico escolar para o mesmo curso) — por
+/// isso [id] é a chave de persistência (não [entradaId], que se repete entre
+/// vários comprovantes da mesma entrada). Os bytes ficam numa box Hive
+/// separada (mesmo padrão de `CertificateLocalStore`), não aqui — este é só
+/// o metadado.
 class ComprovanteEntrada extends Equatable {
+  final String id;
   final String entradaId;
   final CategoriaEntradaLattes categoria;
   final String nomeArquivo;
@@ -14,6 +18,7 @@ class ComprovanteEntrada extends Equatable {
   final DateTime anexadoEm;
 
   const ComprovanteEntrada({
+    required this.id,
     required this.entradaId,
     required this.categoria,
     required this.nomeArquivo,
@@ -22,5 +27,5 @@ class ComprovanteEntrada extends Equatable {
   });
 
   @override
-  List<Object?> get props => [entradaId, categoria, nomeArquivo, mimeType, anexadoEm];
+  List<Object?> get props => [id, entradaId, categoria, nomeArquivo, mimeType, anexadoEm];
 }

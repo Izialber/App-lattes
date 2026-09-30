@@ -6,10 +6,11 @@ import '../../domain/entities/categoria_entrada_lattes.dart';
 import '../../domain/entities/comprovante_entrada.dart';
 
 /// Persistência dos comprovantes anexados — mesmo padrão de
-/// `CertificateLocalStore` (metadados e bytes em boxes separadas, chave
-/// única `entradaId`, já que este módulo é 1 arquivo por entrada). As boxes
-/// precisam estar abertas antes de qualquer método aqui ser chamado (ver
-/// `core/di/bootstrap.dart`).
+/// `CertificateLocalStore` (metadados e bytes em boxes separadas). Chave
+/// única é `comprovante.id` (não `entradaId`): uma entrada pode ter vários
+/// comprovantes (ex.: diploma + histórico do mesmo curso), então
+/// `entradaId` se repete entre registros. As boxes precisam estar abertas
+/// antes de qualquer método aqui ser chamado (ver `core/di/bootstrap.dart`).
 class ComprovanteLocalStore {
   const ComprovanteLocalStore();
 
@@ -19,32 +20,32 @@ class ComprovanteLocalStore {
   Box<Map> get _metadata => Hive.box<Map>(metadataBoxName);
   Box<Uint8List> get _bytes => Hive.box<Uint8List>(bytesBoxName);
 
-  Future<void> salvarBytes(String entradaId, List<int> bytes) {
-    return _bytes.put(entradaId, Uint8List.fromList(bytes));
+  Future<void> salvarBytes(String comprovanteId, List<int> bytes) {
+    return _bytes.put(comprovanteId, Uint8List.fromList(bytes));
   }
 
-  Uint8List? lerBytes(String entradaId) => _bytes.get(entradaId);
+  Uint8List? lerBytes(String comprovanteId) => _bytes.get(comprovanteId);
 
   Future<void> salvar(ComprovanteEntrada comprovante) {
-    return _metadata.put(comprovante.entradaId, _paraMapa(comprovante));
+    return _metadata.put(comprovante.id, _paraMapa(comprovante));
   }
 
-  ComprovanteEntrada? buscar(String entradaId) {
-    final mapa = _metadata.get(entradaId);
+  ComprovanteEntrada? buscar(String comprovanteId) {
+    final mapa = _metadata.get(comprovanteId);
     return mapa == null ? null : _daMapa(mapa);
   }
 
-  Map<String, ComprovanteEntrada> listarTodos() {
-    final comprovantes = _metadata.values.map(_daMapa);
-    return {for (final c in comprovantes) c.entradaId: c};
+  List<ComprovanteEntrada> listarTodos() {
+    return _metadata.values.map(_daMapa).toList(growable: false);
   }
 
-  Future<void> remover(String entradaId) async {
-    await _metadata.delete(entradaId);
-    await _bytes.delete(entradaId);
+  Future<void> remover(String comprovanteId) async {
+    await _metadata.delete(comprovanteId);
+    await _bytes.delete(comprovanteId);
   }
 
   Map<String, dynamic> _paraMapa(ComprovanteEntrada c) => {
+        'id': c.id,
         'entradaId': c.entradaId,
         'categoria': c.categoria.name,
         'nomeArquivo': c.nomeArquivo,
@@ -55,6 +56,7 @@ class ComprovanteLocalStore {
   ComprovanteEntrada _daMapa(dynamic mapaBruto) {
     final mapa = Map<String, dynamic>.from(mapaBruto as Map);
     return ComprovanteEntrada(
+      id: mapa['id'] as String,
       entradaId: mapa['entradaId'] as String,
       categoria: CategoriaEntradaLattes.values.byName(mapa['categoria'] as String),
       nomeArquivo: mapa['nomeArquivo'] as String,

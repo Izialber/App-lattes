@@ -20,6 +20,13 @@ separada em vez de sumir). O Módulo 2 antigo (captura solta + LLM) continua no 
 desconectado da navegação principal — Módulo 3 e Módulo 4 não foram tocados nesta rodada,
 por instrução explícita do usuário de fazer um módulo de cada vez.
 
+**Testado ao vivo com um XML real do usuário e confirmado funcionando de ponta a ponta** — todas
+as 8 categorias, na ordem certa, com botão de upload por item. Achado no teste ao vivo: uma
+entrada pode precisar de mais de um arquivo (ex.: diploma + histórico do mesmo curso) — o MVP de
+"1 arquivo por entrada" foi estendido para múltiplos: cada comprovante ganhou id próprio (a chave
+de persistência deixou de ser `entradaId`), `anexar()` nunca mais substitui, e a tela mostra a
+lista de arquivos já anexados por entrada, cada um com seu baixar/remover.
+
 **LLM compartilhado (`llm_shared`) também ficou real** (usado pelo Módulo 2 antigo e pelo Módulo
 4 — o Módulo 2 novo, descrito acima, não usa LLM nenhum): `GeminiLlmDatasource` e
 `OpenAiLlmDatasource` fazem chamadas HTTP de verdade (Dio) para as respectivas APIs, com

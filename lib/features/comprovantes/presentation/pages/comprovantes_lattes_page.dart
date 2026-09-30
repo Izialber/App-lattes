@@ -105,8 +105,10 @@ class ComprovantesLattesPage extends ConsumerWidget {
   /// Fica visível em vez de simplesmente sumir, pra não perder o arquivo.
   Widget _secaoOrfaos(BuildContext context, WidgetRef ref, ComprovantesState estado) {
     final idsAtuais = estado.entradas.map((e) => e.id).toSet();
-    final orfaos =
-        estado.comprovantes.values.where((c) => !idsAtuais.contains(c.entradaId)).toList();
+    final orfaos = estado.comprovantes.values
+        .expand((lista) => lista)
+        .where((c) => !idsAtuais.contains(c.entradaId))
+        .toList();
     if (orfaos.isEmpty) return const SizedBox.shrink();
 
     return Card(
@@ -139,7 +141,7 @@ class ComprovantesLattesPage extends ConsumerWidget {
                   icon: const Icon(Icons.delete_outline),
                   onPressed: () => ref
                       .read(comprovantesControllerProvider.notifier)
-                      .remover(comprovante.entradaId),
+                      .remover(comprovante.entradaId, comprovante.id),
                 ),
               ),
           ],
@@ -154,58 +156,77 @@ class ComprovantesLattesPage extends ConsumerWidget {
     ComprovantesState estado,
     EntradaLattesRef entrada,
   ) {
-    final comprovante = estado.comprovantes[entrada.id];
+    final anexos = estado.comprovantes[entrada.id] ?? const [];
     final processando = estado.entradaProcessando == entrada.id;
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        comprovante != null ? Icons.check_circle : Icons.upload_file_outlined,
-        color: comprovante != null ? Theme.of(context).colorScheme.primary : null,
-      ),
-      title: Text(entrada.titulo),
-      subtitle: entrada.subtitulo.isEmpty ? null : Text(entrada.subtitulo),
-      trailing: processando
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (comprovante != null) ...[
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              anexos.isEmpty ? Icons.upload_file_outlined : Icons.check_circle,
+              color: anexos.isEmpty ? null : Theme.of(context).colorScheme.primary,
+            ),
+            title: Text(entrada.titulo),
+            subtitle: entrada.subtitulo.isEmpty ? null : Text(entrada.subtitulo),
+            trailing: processando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : IconButton(
+                    tooltip: anexos.isEmpty ? 'Anexar comprovante' : 'Anexar mais um comprovante',
+                    icon: const Icon(Icons.upload_outlined),
+                    onPressed: () => ref
+                        .read(comprovantesControllerProvider.notifier)
+                        .selecionarEAnexar(entrada),
+                  ),
+          ),
+          for (final anexo in anexos)
+            Padding(
+              padding: const EdgeInsets.only(left: 32, bottom: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, size: 18, color: Theme.of(context).hintColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      anexo.nomeArquivo,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   IconButton(
-                    tooltip: 'Baixar comprovante',
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Baixar',
                     icon: const Icon(Icons.download_outlined),
                     onPressed: () {
                       final bytes =
-                          ref.read(comprovantesControllerProvider.notifier).lerBytes(entrada.id);
+                          ref.read(comprovantesControllerProvider.notifier).lerBytes(anexo.id);
                       if (bytes != null) {
-                        baixarArquivoWeb(
-                          bytes,
-                          comprovante.nomeArquivo,
-                          mimeType: comprovante.mimeType,
-                        );
+                        baixarArquivoWeb(bytes, anexo.nomeArquivo, mimeType: anexo.mimeType);
                       }
                     },
                   ),
                   IconButton(
-                    tooltip: 'Remover comprovante',
+                    iconSize: 18,
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Remover',
                     icon: const Icon(Icons.delete_outline),
-                    onPressed: () =>
-                        ref.read(comprovantesControllerProvider.notifier).remover(entrada.id),
+                    onPressed: () => ref
+                        .read(comprovantesControllerProvider.notifier)
+                        .remover(entrada.id, anexo.id),
                   ),
                 ],
-                IconButton(
-                  tooltip: comprovante == null ? 'Anexar comprovante' : 'Substituir comprovante',
-                  icon: const Icon(Icons.upload_outlined),
-                  onPressed: () => ref
-                      .read(comprovantesControllerProvider.notifier)
-                      .selecionarEAnexar(entrada),
-                ),
-              ],
+              ),
             ),
+        ],
+      ),
     );
   }
 }

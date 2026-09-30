@@ -30,7 +30,7 @@ void main() {
   });
 
   group('anexar', () {
-    test('salva bytes e metadados, retorna o comprovante', () async {
+    test('salva bytes e metadados com um id próprio, retorna o comprovante', () async {
       final resultado = await repository.anexar(
         entradaId: 'e1',
         categoria: CategoriaEntradaLattes.curso,
@@ -41,12 +41,13 @@ void main() {
 
       expect(resultado.isRight(), isTrue);
       resultado.match((_) => fail('esperava Right'), (c) {
+        expect(c.id, isNotEmpty);
         expect(c.entradaId, 'e1');
         expect(c.categoria, CategoriaEntradaLattes.curso);
         expect(c.nomeArquivo, 'diploma.pdf');
         expect(c.mimeType, 'application/pdf');
       });
-      verify(() => localStore.salvarBytes('e1', const [1, 2, 3])).called(1);
+      verify(() => localStore.salvarBytes(any(), const [1, 2, 3])).called(1);
     });
 
     test('converte HEIC pra JPEG antes de salvar', () async {
@@ -67,7 +68,7 @@ void main() {
         expect(c.mimeType, 'image/jpeg');
         expect(c.nomeArquivo, 'foto.jpg');
       });
-      verify(() => localStore.salvarBytes('e1', const [9, 9, 9])).called(1);
+      verify(() => localStore.salvarBytes(any(), const [9, 9, 9])).called(1);
     });
 
     test('CaptureFailure quando a conversão HEIC não é suportada', () async {
@@ -90,41 +91,46 @@ void main() {
       verifyNever(() => localStore.salvarBytes(any(), any()));
     });
 
-    test('substitui um comprovante anterior da mesma entrada', () async {
-      await repository.anexar(
+    test('anexar duas vezes na mesma entrada NÃO substitui — os dois convivem', () async {
+      final primeiro = await repository.anexar(
         entradaId: 'e1',
         categoria: CategoriaEntradaLattes.curso,
         bytes: const [1],
-        nomeArquivo: 'antigo.pdf',
+        nomeArquivo: 'diploma.pdf',
         mimeType: 'application/pdf',
       );
-      await repository.anexar(
+      final segundo = await repository.anexar(
         entradaId: 'e1',
         categoria: CategoriaEntradaLattes.curso,
         bytes: const [2],
-        nomeArquivo: 'novo.pdf',
+        nomeArquivo: 'historico.pdf',
         mimeType: 'application/pdf',
       );
 
-      verify(() => localStore.salvarBytes('e1', const [1])).called(1);
-      verify(() => localStore.salvarBytes('e1', const [2])).called(1);
+      final idPrimeiro = primeiro.getOrElse((_) => fail('esperava Right')).id;
+      final idSegundo = segundo.getOrElse((_) => fail('esperava Right')).id;
+      expect(idPrimeiro, isNot(idSegundo)); // ids diferentes, nenhum sobrescreve o outro
+
+      verify(() => localStore.salvarBytes(any(), const [1])).called(1);
+      verify(() => localStore.salvarBytes(any(), const [2])).called(1);
+      verify(() => localStore.salvar(any())).called(2);
     });
   });
 
   group('remover', () {
-    test('remove do local store', () async {
+    test('remove do local store por id do comprovante', () async {
       when(() => localStore.remover(any())).thenAnswer((_) async {});
 
-      final resultado = await repository.remover('e1');
+      final resultado = await repository.remover('c1');
 
       expect(resultado.isRight(), isTrue);
-      verify(() => localStore.remover('e1')).called(1);
+      verify(() => localStore.remover('c1')).called(1);
     });
 
     test('LocalStorageFailure quando o local store lança', () async {
       when(() => localStore.remover(any())).thenThrow(Exception('falha de disco'));
 
-      final resultado = await repository.remover('e1');
+      final resultado = await repository.remover('c1');
 
       resultado.match(
         (falha) => expect(falha, isA<LocalStorageFailure>()),
@@ -134,27 +140,38 @@ void main() {
   });
 
   group('listarTodos', () {
-    test('delega para o local store', () async {
-      final comprovante = ComprovanteEntrada(
-        entradaId: 'e1',
-        categoria: CategoriaEntradaLattes.curso,
-        nomeArquivo: 'diploma.pdf',
-        mimeType: 'application/pdf',
-        anexadoEm: DateTime(2026, 1, 1),
-      );
-      when(() => localStore.listarTodos()).thenReturn({'e1': comprovante});
+    test('delega para o local store, incluindo várias entradas com o mesmo entradaId', () async {
+      final comprovantes = [
+        ComprovanteEntrada(
+          id: 'c1',
+          entradaId: 'e1',
+          categoria: CategoriaEntradaLattes.curso,
+          nomeArquivo: 'diploma.pdf',
+          mimeType: 'application/pdf',
+          anexadoEm: DateTime(2026, 1, 1),
+        ),
+        ComprovanteEntrada(
+          id: 'c2',
+          entradaId: 'e1',
+          categoria: CategoriaEntradaLattes.curso,
+          nomeArquivo: 'historico.pdf',
+          mimeType: 'application/pdf',
+          anexadoEm: DateTime(2026, 1, 2),
+        ),
+      ];
+      when(() => localStore.listarTodos()).thenReturn(comprovantes);
 
       final resultado = await repository.listarTodos();
 
-      expect(resultado, {'e1': comprovante});
+      expect(resultado, comprovantes);
     });
   });
 
   group('lerBytes', () {
-    test('delega para o local store', () {
-      when(() => localStore.lerBytes('e1')).thenReturn(Uint8List.fromList([1, 2, 3]));
+    test('delega para o local store por id do comprovante', () {
+      when(() => localStore.lerBytes('c1')).thenReturn(Uint8List.fromList([1, 2, 3]));
 
-      final bytes = repository.lerBytes('e1');
+      final bytes = repository.lerBytes('c1');
 
       expect(bytes, [1, 2, 3]);
     });

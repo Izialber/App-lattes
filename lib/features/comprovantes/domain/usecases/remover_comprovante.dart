@@ -8,5 +8,5 @@ class RemoverComprovante {
 
   const RemoverComprovante(this._repository);
 
-  Future<Either<Failure, Unit>> call(String entradaId) => _repository.remover(entradaId);
+  Future<Either<Failure, Unit>> call(String comprovanteId) => _repository.remover(comprovanteId);
 }

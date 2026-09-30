@@ -42,10 +42,11 @@ final removerComprovanteProvider = Provider(
 
 /// Estado da tela de comprovantes: as entradas do currículo (recalculadas do
 /// `CurriculoLattes` — nunca persistidas por si só, ver `EntradaLattesRef`) e
-/// o mapa de comprovantes já anexados, por `entradaId`.
+/// os comprovantes já anexados, agrupados por `entradaId` — uma entrada pode
+/// ter vários (ex.: diploma + histórico do mesmo curso).
 class ComprovantesState {
   final List<EntradaLattesRef> entradas;
-  final Map<String, ComprovanteEntrada> comprovantes;
+  final Map<String, List<ComprovanteEntrada>> comprovantes;
   final String? entradaProcessando;
   final String? erro;
 
@@ -58,7 +59,7 @@ class ComprovantesState {
 
   ComprovantesState copyWith({
     List<EntradaLattesRef>? entradas,
-    Map<String, ComprovanteEntrada>? comprovantes,
+    Map<String, List<ComprovanteEntrada>>? comprovantes,
     String? entradaProcessando,
     bool limparEntradaProcessando = false,
     String? erro,
@@ -88,13 +89,22 @@ class ComprovantesController extends Notifier<ComprovantesState> {
   }
 
   Future<void> _carregarComprovantes() async {
-    final comprovantes = await ref.read(comprovanteRepositoryProvider).listarTodos();
-    state = state.copyWith(comprovantes: comprovantes);
+    final todos = await ref.read(comprovanteRepositoryProvider).listarTodos();
+    state = state.copyWith(comprovantes: _agruparPorEntrada(todos));
+  }
+
+  Map<String, List<ComprovanteEntrada>> _agruparPorEntrada(List<ComprovanteEntrada> todos) {
+    final agrupados = <String, List<ComprovanteEntrada>>{};
+    for (final c in todos) {
+      (agrupados[c.entradaId] ??= []).add(c);
+    }
+    return agrupados;
   }
 
   /// Abre o seletor de arquivo do sistema e, se o usuário escolher algo,
-  /// anexa à [entrada]. Não faz nada se o usuário fechar o seletor sem
-  /// escolher (não é erro).
+  /// anexa à [entrada] — soma aos comprovantes já existentes da mesma
+  /// entrada, nunca substitui (uma entrada pode ter vários). Não faz nada se
+  /// o usuário fechar o seletor sem escolher (não é erro).
   Future<void> selecionarEAnexar(EntradaLattesRef entrada) async {
     final arquivo = await ref.read(comprovanteUploadDatasourceProvider).selecionarArquivo();
     if (arquivo == null) return;
@@ -116,22 +126,32 @@ class ComprovantesController extends Notifier<ComprovantesState> {
       ),
       (comprovante) => state = state.copyWith(
         limparEntradaProcessando: true,
-        comprovantes: {...state.comprovantes, entrada.id: comprovante},
+        comprovantes: {
+          ...state.comprovantes,
+          entrada.id: [...state.comprovantes[entrada.id] ?? [], comprovante],
+        },
       ),
     );
   }
 
-  Uint8List? lerBytes(String entradaId) =>
-      ref.read(comprovanteRepositoryProvider).lerBytes(entradaId);
+  Uint8List? lerBytes(String comprovanteId) =>
+      ref.read(comprovanteRepositoryProvider).lerBytes(comprovanteId);
 
   void limparErro() => state = state.copyWith(limparErro: true);
 
-  Future<void> remover(String entradaId) async {
-    final resultado = await ref.read(removerComprovanteProvider).call(entradaId);
+  Future<void> remover(String entradaId, String comprovanteId) async {
+    final resultado = await ref.read(removerComprovanteProvider).call(comprovanteId);
     resultado.match(
       (falha) => state = state.copyWith(erro: falha.message),
       (_) {
-        final novos = {...state.comprovantes}..remove(entradaId);
+        final restantes =
+            (state.comprovantes[entradaId] ?? []).where((c) => c.id != comprovanteId).toList();
+        final novos = {...state.comprovantes};
+        if (restantes.isEmpty) {
+          novos.remove(entradaId);
+        } else {
+          novos[entradaId] = restantes;
+        }
         state = state.copyWith(comprovantes: novos);
       },
     );

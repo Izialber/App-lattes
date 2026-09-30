@@ -725,3 +725,26 @@ novos cobrem a geração de id (determinismo, sem colisão cross-categoria, sens
 de campo) e o repositório de comprovantes (anexar, substituir, HEIC, remover, listar). Sem teste
 de round-trip do `CurriculoLocalStore` em si — o projeto não testa nenhum local store Hive
 diretamente (só via mock na camada de repositório), mesmo padrão mantido aqui.
+
+## Múltiplos comprovantes por entrada (2026-09-30)
+
+Testado ao vivo pela primeira vez (importação real de um XML do Lattes com dados reais do
+usuário) — o módulo funcionou de ponta a ponta: todas as 8 categorias apareceram na ordem
+certa, com contagem e botão de upload por item. Nesse teste o usuário pediu uma mudança:
+**precisa poder anexar mais de um arquivo por entrada** (ex.: diploma + histórico do mesmo
+curso) — o MVP original (1 arquivo por entrada, substituindo o anterior) já estava documentado
+como limitação deliberada com essa extensão prevista.
+
+Mudança: `ComprovanteEntrada` ganhou `id` próprio (gerado via `Uuid`, mesmo pacote já usado em
+`certificate_repository_impl.dart`) — antes a chave de persistência era `entradaId` (só cabia
+um por entrada); agora é `id`, e `entradaId` vira uma chave estrangeira que se repete entre
+vários comprovantes da mesma entrada. `ComprovanteLocalStore`/`ComprovanteRepository.listarTodos`
+passam a devolver uma lista achatada (não mais um `Map<entradaId, ComprovanteEntrada>`) — quem
+precisa agrupar por entrada (a tela) faz isso na camada de apresentação, não na de dados.
+`anexar()` nunca mais substitui: cada chamada cria um registro novo. `remover()` agora recebe o
+id do comprovante específico, não o da entrada (senão não daria pra remover só um dos vários).
+
+UI: cada entrada mostra o botão de upload sempre disponível (não trocava mais entre
+"anexar"/"substituir"), e abaixo dele a lista dos arquivos já anexados, cada um com seu próprio
+baixar/remover. Achado de teste ao vivo, não de revisão de código — mesmo padrão de correção
+"acha na prática, corrige na hora" desta sessão.

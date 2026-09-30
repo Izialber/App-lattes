@@ -7,9 +7,10 @@ import '../entities/categoria_entrada_lattes.dart';
 import '../entities/comprovante_entrada.dart';
 
 abstract class ComprovanteRepository {
-  /// Normaliza formato (HEIC -> JPEG quando aplicável) e anexa [bytes] à
-  /// entrada [entradaId] — substitui um comprovante anterior da mesma
-  /// entrada, se houver (MVP: 1 arquivo por entrada, ver DECISOES.md).
+  /// Normaliza formato (HEIC -> JPEG quando aplicável) e anexa [bytes] como
+  /// UM NOVO comprovante da entrada [entradaId] — uma entrada pode ter
+  /// vários (ex.: diploma + histórico do mesmo curso), então isto nunca
+  /// substitui um comprovante existente.
   Future<Either<Failure, ComprovanteEntrada>> anexar({
     required String entradaId,
     required CategoriaEntradaLattes categoria,
@@ -18,11 +19,13 @@ abstract class ComprovanteRepository {
     required String mimeType,
   });
 
-  Future<Either<Failure, Unit>> remover(String entradaId);
+  /// Remove UM comprovante específico por [comprovanteId] (não por
+  /// `entradaId` — várias entradas podem ter o mesmo `entradaId`).
+  Future<Either<Failure, Unit>> remover(String comprovanteId);
 
-  /// Todos os comprovantes já anexados, indexados por `entradaId` — a UI usa
-  /// isso pra decidir o ícone de status de cada `EntradaLattesRef`.
-  Future<Map<String, ComprovanteEntrada>> listarTodos();
+  /// Todos os comprovantes já anexados — a UI agrupa por `entradaId` para
+  /// decidir o status de cada `EntradaLattesRef` e listar seus anexos.
+  Future<List<ComprovanteEntrada>> listarTodos();
 
-  Uint8List? lerBytes(String entradaId);
+  Uint8List? lerBytes(String comprovanteId);
 }
