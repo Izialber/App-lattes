@@ -823,3 +823,48 @@ sincronizado, vermelho = falha — toca pra tentar de novo só aquele arquivo).
 sincronizado). Testes novos cobrem `criarPastaSeNaoExistir` com `pastaPaiId`, cache de subpasta
 por categoria em `CloudStorageRepositoryImpl`, e `ComprovanteRepositoryImpl.
 atualizarStatusSincronizacao`.
+
+## Bug ao vivo: tela de Comprovantes renderizando quebrada depois do deploy da sync (2026-09-30)
+
+Depois do deploy da integração acima, `/comprovantes` carregou com vários elementos
+invisíveis (ícones da AppBar, subtítulo/chevron do `ExpansionTile`, cabeçalho de progresso) —
+confirmado por zoom em pixel, não só baixo contraste. Investigação descartou, nessa ordem:
+service worker/cache desatualizado (`sw.js` desregistrado, cache limpo, sem efeito); deploy
+desatualizado (ETag do `main.dart.js` já tinha mudado); corrupção de dado (inspeção ingênua do
+IndexedDB via `JSON.stringify` mostrou 3 registros como `{}`, mas isso é enganoso — o Hive CE
+grava valores como `ArrayBuffer` binário, não JSON puro; só confirmável checando `instanceof
+ArrayBuffer`).
+
+**Causa real**: `ComprovantesController._carregarComprovantes()` não tinha try/catch. Havia 3
+registros de teste gravados numa sessão anterior, de antes da mudança que deu a cada
+`ComprovanteEntrada` seu próprio `id` — ao desserializar, `mapa['id'] as String` estourava em
+cima de um valor `null`. Como essa chamada é fire-and-forget (disparada dentro de `build()`,
+convenção já estabelecida no projeto), a exceção não tratada virava uma `Future` rejeitada sem
+ninguém ouvindo — e isso bastou pra derrubar a renderização de widgets *irmãos* não relacionados,
+consistente com o comportamento do Flutter de isolar erros por elemento (a subárvore afetada vira
+um `ErrorWidget` quase invisível em release, sem crashar o resto da árvore).
+
+**Fix**: try/catch adicionado nos 4 métodos fire-and-forget que ainda não tinham — mesmo padrão
+usado pra tudo mais no projeto que roda dentro de `build()`:
+`ComprovantesController._carregarComprovantes`, e em `ComprovantesSyncController`:
+`_retomarPendentes`, `sincronizarTodos`, `retentarUm`. Falhas agora aparecem no
+`MaterialBanner` de erro já existente na tela, em vez de sumirem silenciosamente. Os 3 registros
+de teste (confirmados como lixo de um teste anterior, não dado real do usuário) foram limpos
+direto via IndexedDB (`store.clear()` em `comprovantes_metadata`/`comprovantes_bytes`).
+
+**Lição pro projeto**: toda chamada fire-and-forget disparada de dentro de `build()` precisa de
+try/catch — não é só estilo, é o que evita que uma falha em UM controller quebre a renderização
+de partes não relacionadas da tela. Vale revisar os outros controllers do projeto com o mesmo
+padrão (`build()` chamando método async sem `await`) se aparecer outro bug de renderização
+parecido.
+
+## Teste ao vivo confirmado: sincronização de comprovantes com o Drive (2026-09-30)
+
+Depois do fix acima, testado de ponta a ponta com os 2 arquivos já anexados (diploma + histórico
+de "Licenciatura em Matemática"): clique no ícone de sincronizar da AppBar, e os dois passaram de
+"não sincronizado" pra "sincronizado" (ícone `cloud_done_outlined` azul), confirmado por reload
+da página. Conferido também diretamente no Google Drive: os dois PDFs apareceram em
+`Certificados Lattes/Formação acadêmica/`, com nome determinístico
+(`Diploma_-LICENCIATURA-EM-MATEMATICA-<hash>.pdf` e `Historico_-...-<hash>.pdf`). Organização por
+subpasta funcionando exatamente como desenhado. A integração do Módulo 3 com o módulo de
+comprovantes está confirmada funcionando ao vivo, não só revisada como texto.

@@ -30,15 +30,20 @@ Ainda no mesmo teste ao vivo: seções da tela de Comprovantes viraram recolhív
 tem 30-40+ entradas, ninguém preenche tudo de uma vez), ganhou um cabeçalho com % de conclusão
 geral, e um botão na AppBar pra voltar e reimportar um XML atualizado do Lattes.
 
-**Módulo 3 (sync com o Drive) conectado ao módulo de comprovantes** — até aqui os comprovantes
-só ficavam salvos localmente, sem backup nenhum (achado ao usuário perguntar onde estava indo
-pro Drive). Toda a mecânica de upload resumível já existente (chunking, backoff, retomada de
-sessão) é reaproveitada sem duplicar — só generalizada (`UploadTask.certificadoId` virou
-`referenciaId`, um campo opaco que os dois módulos compartilham na mesma fila). Organização no
-Drive: uma subpasta por categoria dentro da pasta dedicada (`Certificados Lattes/Formação
-acadêmica/`, `Certificados Lattes/Idiomas/` etc.). Ícone de sincronizar na AppBar (disparo
-manual, por decisão do usuário) + indicador de status (nuvem cinza/spinner/check/erro) em cada
-arquivo já anexado, com retry individual em caso de falha.
+**Módulo 3 (sync com o Drive) conectado ao módulo de comprovantes, e testado ao vivo com
+sucesso** — até aqui os comprovantes só ficavam salvos localmente, sem backup nenhum (achado ao
+usuário perguntar onde estava indo pro Drive). Toda a mecânica de upload resumível já existente
+(chunking, backoff, retomada de sessão) é reaproveitada sem duplicar — só generalizada
+(`UploadTask.certificadoId` virou `referenciaId`, um campo opaco que os dois módulos compartilham
+na mesma fila). Organização no Drive: uma subpasta por categoria dentro da pasta dedicada
+(`Certificados Lattes/Formação acadêmica/`, `Certificados Lattes/Idiomas/` etc.). Ícone de
+sincronizar na AppBar (disparo manual, por decisão do usuário) + indicador de status (nuvem
+cinza/spinner/check/erro) em cada arquivo já anexado, com retry individual em caso de falha. No
+caminho, um bug real foi achado e corrigido ao vivo: chamadas fire-and-forget sem try/catch
+dentro de `build()` podiam derrubar silenciosamente a renderização de partes não relacionadas da
+tela (achado com 3 registros de teste de schema antigo) — ver DECISOES.md. Teste ao vivo final:
+2 arquivos sincronizados e conferidos direto no Google Drive, na subpasta certa, com nome
+determinístico.
 
 **LLM compartilhado (`llm_shared`) também ficou real** (usado pelo Módulo 2 antigo e pelo Módulo
 4 — o Módulo 2 novo, descrito acima, não usa LLM nenhum): `GeminiLlmDatasource` e
