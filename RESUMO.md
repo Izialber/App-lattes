@@ -1,3 +1,9 @@
+**Terceiro provedor de LLM: Anthropic (Claude Haiku)** — motivado por um erro real ao vivo
+(Gemini sob alta demanda, "This model is currently experiencing high demand"). BYOK, mesmo padrão
+dos outros dois provedores, lê PDF nativamente (diferente da OpenAI). Revisão de código pegou um
+bug real antes do deploy: ID do modelo com sufixo de data indevido, que quebraria toda chamada
+com 404 — corrigido. Ainda não testado ao vivo com uma chave real.
+
 **Módulo 4 (Montar Dossiê) conectado ao módulo de Comprovantes** — até aqui o Módulo 4
 dependia inteiramente do módulo antigo de certificados, desconectado da navegação desde o
 redesenho do Módulo 2 — a tela de "Montar dossiê" não enxergava os comprovantes reais, e nem era

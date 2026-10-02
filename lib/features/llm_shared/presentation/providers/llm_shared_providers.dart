@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../data/datasources/anthropic_llm_datasource.dart';
 import '../../data/datasources/gemini_llm_datasource.dart';
 import '../../data/datasources/llm_api_key_store.dart';
 import '../../data/datasources/openai_llm_datasource.dart';
@@ -18,6 +19,8 @@ final geminiLlmDatasourceProvider = Provider((ref) => GeminiLlmDatasource());
 
 final openAiLlmDatasourceProvider = Provider((ref) => OpenAiLlmDatasource());
 
+final anthropicLlmDatasourceProvider = Provider((ref) => AnthropicLlmDatasource());
+
 final llmApiKeyStoreProvider = Provider(
   (ref) => LlmApiKeyStore(ref.watch(secureStorageServiceProvider)),
 );
@@ -26,6 +29,7 @@ final llmRepositoryProvider = Provider<LlmRepository>(
   (ref) => LlmRepositoryImpl(
     ref.watch(geminiLlmDatasourceProvider),
     ref.watch(openAiLlmDatasourceProvider),
+    ref.watch(anthropicLlmDatasourceProvider),
     ref.watch(llmApiKeyStoreProvider),
   ),
 );

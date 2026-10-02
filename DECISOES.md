@@ -1167,3 +1167,40 @@ comprovante órfão (um em cada grupo). `certificate_capture` continua no repo, 
 deixou de ser a fonte de dados do Módulo 4.
 
 Ainda não testado ao vivo.
+
+## Terceiro provedor de LLM: Anthropic (Claude Haiku) (2026-10-02)
+
+Motivado por um erro real ao vivo: chave do Gemini configurada, mas a API respondeu "This model
+is currently experiencing high demand" (pico transitório do lado do Google). Usuário pediu uma
+opção adicional de provedor BYOK pra não ficar refém de um único provedor sob alta demanda.
+
+`LlmProviderEscolhido` ganhou `claudeHaiku`; os dois pontos que antes usavam ternário binário
+(`provider == geminiFlash ? x : y`) em `LlmApiKeyStore`/`LlmRepositoryImpl` viraram `switch`
+exaustivo — o compilador agora obriga tratar os 3 casos se um quarto provedor for adicionado no
+futuro. Novo `AnthropicLlmDatasource` segue o mesmo contrato dos outros dois
+(`gerarJson({apiKey, prompt, imagemBytes?, mimeType?})`), API Messages
+(`api.anthropic.com/v1/messages`), autenticação via header `x-api-key` +
+`anthropic-version: 2023-06-01` + `anthropic-dangerous-direct-browser-access: true` (sem esse
+último header a Anthropic bloqueia chamada direta do navegador por padrão — mesmo padrão de "CORS
+silencioso" já visto com outras integrações). Diferente da OpenAI, a Anthropic lê PDF nativamente
+(bloco `document`, igual ao Gemini) — sem a limitação de "só imagem" que `OpenAiLlmDatasource`
+tem.
+
+**Revisão de código pega um bug real antes do deploy**: o ID do modelo usado inicialmente
+(`claude-haiku-4-5-20251001`, com sufixo de data) quebraria toda chamada com 404 — IDs de modelo
+da Anthropic são completos como estão, sem sufixo de data (confirmado contra a skill de
+referência oficial da API Claude). Corrigido para `claude-haiku-4-5`. Também corrigida a ordem do
+bloco de conteúdo (documento/imagem antes do texto do prompt — ordem recomendada pela
+documentação da Anthropic pra blocos `document`, afeta qualidade da extração).
+
+CSP (`web/index.html`) ganhou `api.anthropic.com` em `connect-src` — mesmo cuidado de sempre
+nesta sessão (esquecer isso produz erro de rede genérico, não um erro CORS explícito).
+
+Anthropic não tem um "modo JSON" nativo equivalente a `responseMimeType`/`response_format` dos
+outros dois provedores — confia só no prompt pedindo JSON + no parser já tolerante a cercas
+markdown (`decodificarJsonDoModelo`, compartilhado pelos 3 datasources). Funciona, mas é a única
+das três integrações sem essa garantia adicional — fica registrado como possível melhoria futura
+(a Anthropic tem um recurso de structured outputs mais novo, não investigado a fundo ainda).
+
+Teste novo em `llm_repository_impl_test.dart` cobrindo o novo provedor, mesmo padrão do teste já
+existente pra OpenAI. Ainda não testado ao vivo com uma chave real da Anthropic.

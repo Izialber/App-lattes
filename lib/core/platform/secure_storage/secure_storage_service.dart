@@ -28,6 +28,7 @@ class SecureStorageKeys {
   static const microsoftRefreshToken = 'microsoft_refresh_token';
   static const llmApiKeyGemini = 'llm_api_key_gemini';
   static const llmApiKeyOpenAi = 'llm_api_key_openai';
+  static const llmApiKeyAnthropic = 'llm_api_key_anthropic';
 
   /// Qual provedor (`LlmProviderEscolhido.name`) o usuário escolheu usar —
   /// não é um segredo em si, mas fica junto das chaves BYOK por

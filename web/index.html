@@ -56,9 +56,12 @@
        - firestore.googleapis.com em connect-src: transporte do SDK Web do
          Firestore (códigos de convite) — sem isso toda leitura/escrita
          falha como erro de rede genérico, mesmo padrão silencioso já visto
-         com as outras chamadas do Firebase nesta CSP. -->
+         com as outras chamadas do Firebase nesta CSP.
+       - api.anthropic.com em connect-src: terceiro provedor de LLM BYOK
+         (Claude Haiku) — mesmo padrão silencioso de sempre se esquecido
+         aqui: erro de rede genérico, não um erro CORS explícito. -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://graph.microsoft.com https://generativelanguage.googleapis.com https://api.openai.com https://accounts.google.com https://login.microsoftonline.com https://fonts.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://www.gstatic.com;">
+        content="default-src 'self'; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com https://graph.microsoft.com https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com https://accounts.google.com https://login.microsoftonline.com https://fonts.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://www.gstatic.com;">
 </head>
 <body>
   <script>

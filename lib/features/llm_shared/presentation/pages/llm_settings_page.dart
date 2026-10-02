@@ -57,6 +57,10 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
                   value: LlmProviderEscolhido.gpt4oMini,
                   label: Text('GPT-4o mini'),
                 ),
+                ButtonSegment(
+                  value: LlmProviderEscolhido.claudeHaiku,
+                  label: Text('Claude Haiku'),
+                ),
               ],
               selected: {estado.provider},
               onSelectionChanged: testando
@@ -131,6 +135,14 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
             'Entre ou crie uma conta na OpenAI (requer cadastrar um método de pagamento).',
             'Clique em "Create new secret key".',
             'Copie a chave imediatamente — ela só é exibida uma vez — e cole abaixo.',
+          ],
+        ),
+      LlmProviderEscolhido.claudeHaiku => (
+          'https://console.anthropic.com/settings/keys',
+          const [
+            'Entre ou crie uma conta na Anthropic (requer cadastrar um método de pagamento).',
+            'Clique em "Create Key".',
+            'Copie a chave gerada e cole no campo abaixo.',
           ],
         ),
     };

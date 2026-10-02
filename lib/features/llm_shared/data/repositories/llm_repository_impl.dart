@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart' show Either, Left, Right, Unit, unit;
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/llm_provider_escolhido.dart';
 import '../../domain/repositories/llm_repository.dart';
+import '../datasources/anthropic_llm_datasource.dart';
 import '../datasources/gemini_llm_datasource.dart';
 import '../datasources/llm_api_exception.dart';
 import '../datasources/llm_api_key_store.dart';
@@ -18,9 +19,10 @@ import '../datasources/openai_llm_datasource.dart';
 class LlmRepositoryImpl implements LlmRepository {
   final GeminiLlmDatasource _gemini;
   final OpenAiLlmDatasource _openAi;
+  final AnthropicLlmDatasource _anthropic;
   final LlmApiKeyStore _apiKeyStore;
 
-  const LlmRepositoryImpl(this._gemini, this._openAi, this._apiKeyStore);
+  const LlmRepositoryImpl(this._gemini, this._openAi, this._anthropic, this._apiKeyStore);
 
   @override
   Future<Either<Failure, Map<String, dynamic>>> extrairJsonDeImagem({
@@ -56,9 +58,14 @@ class LlmRepositoryImpl implements LlmRepository {
   }) async {
     const promptMinimo = 'Responda apenas com o JSON {"ok": true}, sem nenhum texto adicional.';
     try {
-      await (provider == LlmProviderEscolhido.geminiFlash
-          ? _gemini.gerarJson(apiKey: apiKey, prompt: promptMinimo)
-          : _openAi.gerarJson(apiKey: apiKey, prompt: promptMinimo));
+      await switch (provider) {
+        LlmProviderEscolhido.geminiFlash =>
+          _gemini.gerarJson(apiKey: apiKey, prompt: promptMinimo),
+        LlmProviderEscolhido.gpt4oMini =>
+          _openAi.gerarJson(apiKey: apiKey, prompt: promptMinimo),
+        LlmProviderEscolhido.claudeHaiku =>
+          _anthropic.gerarJson(apiKey: apiKey, prompt: promptMinimo),
+      };
       return const Right(unit);
     } on LlmApiException catch (e) {
       return Left(LlmFailure(e.message, isQuotaOrAuth: e.isQuotaOrAuth));
@@ -73,19 +80,26 @@ class LlmRepositoryImpl implements LlmRepository {
     List<int>? imagemBytes,
     String? mimeType,
   }) {
-    return config.provider == LlmProviderEscolhido.geminiFlash
-        ? _gemini.gerarJson(
-            apiKey: config.apiKey,
-            prompt: prompt,
-            imagemBytes: imagemBytes,
-            mimeType: mimeType,
-          )
-        : _openAi.gerarJson(
-            apiKey: config.apiKey,
-            prompt: prompt,
-            imagemBytes: imagemBytes,
-            mimeType: mimeType,
-          );
+    return switch (config.provider) {
+      LlmProviderEscolhido.geminiFlash => _gemini.gerarJson(
+          apiKey: config.apiKey,
+          prompt: prompt,
+          imagemBytes: imagemBytes,
+          mimeType: mimeType,
+        ),
+      LlmProviderEscolhido.gpt4oMini => _openAi.gerarJson(
+          apiKey: config.apiKey,
+          prompt: prompt,
+          imagemBytes: imagemBytes,
+          mimeType: mimeType,
+        ),
+      LlmProviderEscolhido.claudeHaiku => _anthropic.gerarJson(
+          apiKey: config.apiKey,
+          prompt: prompt,
+          imagemBytes: imagemBytes,
+          mimeType: mimeType,
+        ),
+    };
   }
 
   Future<Either<Failure, _ConfiguracaoLlmAtiva>> _resolverConfiguracaoAtiva() async {

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:certificados_lattes/core/error/failures.dart';
+import 'package:certificados_lattes/features/llm_shared/data/datasources/anthropic_llm_datasource.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/gemini_llm_datasource.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/llm_api_exception.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/llm_api_key_store.dart';
@@ -13,19 +14,23 @@ class MockGeminiLlmDatasource extends Mock implements GeminiLlmDatasource {}
 
 class MockOpenAiLlmDatasource extends Mock implements OpenAiLlmDatasource {}
 
+class MockAnthropicLlmDatasource extends Mock implements AnthropicLlmDatasource {}
+
 class MockLlmApiKeyStore extends Mock implements LlmApiKeyStore {}
 
 void main() {
   late MockGeminiLlmDatasource gemini;
   late MockOpenAiLlmDatasource openAi;
+  late MockAnthropicLlmDatasource anthropic;
   late MockLlmApiKeyStore keyStore;
   late LlmRepositoryImpl repository;
 
   setUp(() {
     gemini = MockGeminiLlmDatasource();
     openAi = MockOpenAiLlmDatasource();
+    anthropic = MockAnthropicLlmDatasource();
     keyStore = MockLlmApiKeyStore();
-    repository = LlmRepositoryImpl(gemini, openAi, keyStore);
+    repository = LlmRepositoryImpl(gemini, openAi, anthropic, keyStore);
   });
 
   group('extrairJsonDeImagem', () {
@@ -99,6 +104,27 @@ void main() {
           .thenAnswer((_) async => 'chave-openai');
       when(() => openAi.gerarJson(
             apiKey: 'chave-openai',
+            prompt: 'prompt',
+            imagemBytes: const [1, 2, 3],
+            mimeType: 'image/jpeg',
+          )).thenAnswer((_) async => {'titulo': 'Curso X'});
+
+      final resultado = await repository.extrairJsonDeImagem(
+        imagemBytes: const [1, 2, 3],
+        mimeType: 'image/jpeg',
+        promptExtracao: 'prompt',
+      );
+
+      expect(resultado.isRight(), isTrue);
+    });
+
+    test('chama a Anthropic quando o provedor configurado é claudeHaiku', () async {
+      when(() => keyStore.obterProvedorEscolhido())
+          .thenAnswer((_) async => LlmProviderEscolhido.claudeHaiku);
+      when(() => keyStore.obterChave(LlmProviderEscolhido.claudeHaiku))
+          .thenAnswer((_) async => 'chave-anthropic');
+      when(() => anthropic.gerarJson(
+            apiKey: 'chave-anthropic',
             prompt: 'prompt',
             imagemBytes: const [1, 2, 3],
             mimeType: 'image/jpeg',
