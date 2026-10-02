@@ -34,6 +34,16 @@ class LattesImportPage extends ConsumerWidget {
               icon: const Icon(Icons.add_photo_alternate_outlined),
               onPressed: () => context.go(AppRoutes.comprovantes),
             ),
+          // Também fica em Comprovantes (ver DECISOES.md) — achado ao vivo
+          // pelo usuário: só lá era pouco visível, escondido entre as ações
+          // de upload/sync. Aqui, na tela que a pessoa vê assim que entra,
+          // fica alcançável sem precisar passar por Comprovantes primeiro.
+          if (estado.curriculo != null)
+            IconButton(
+              tooltip: 'Montar dossiê',
+              icon: const Icon(Icons.description_outlined),
+              onPressed: () => context.go(AppRoutes.dossieNovo),
+            ),
           // Só visível pro admin — reaproveita o e-mail já disponível no
           // AuthState (agora populado também pro login Google, ver
           // DECISOES.md) em vez de forçar todo mundo a ver este ícone.

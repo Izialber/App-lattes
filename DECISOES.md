@@ -1231,3 +1231,13 @@ outros 3. Quarta opção "Groq (grátis)" no seletor da tela de configuração, 
 sobre a limitação de PDF já nas instruções de como conseguir a chave.
 
 Ainda não testado ao vivo com uma chave real da Groq.
+
+## Segundo ponto de acesso ao Módulo 4, na tela inicial (2026-10-02)
+
+Achado do usuário ao vivo: o ícone "Montar dossiê" só existia dentro da AppBar de Comprovantes,
+pouco visível ali, misturado com as ações de upload/sincronizar. Adicionado também na tela
+inicial (`/importar-lattes`, a primeira coisa que a pessoa vê depois de logar), mesma condição
+de visibilidade do ícone de "Anexar comprovantes" (só aparece com um currículo já importado — sem
+entradas do Lattes não há nada pra comparar contra um edital). Os dois pontos de acesso coexistem
+de propósito (decisão do usuário) — Comprovantes continua com o seu, por fazer sentido no fim
+natural daquele fluxo (upload → sincronizar → montar dossiê).
