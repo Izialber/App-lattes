@@ -1206,3 +1206,28 @@ Teste novo em `llm_repository_impl_test.dart` cobrindo o novo provedor, mesmo pa
 existente pra OpenAI. **Testado ao vivo (UI)**: terceira opção "Claude Haiku" aparece
 corretamente no seletor, com instruções específicas (`console.anthropic.com/settings/keys`).
 Ainda falta testar a chamada real à API (depende de uma chave de API da Anthropic do usuário).
+
+## Quarto provedor de LLM: Groq (gratuito) (2026-10-02)
+
+Pedido do usuário logo em seguida: um provedor gratuito, sem cartão de crédito, pra não depender
+só de provedores pagos quando um estiver sobrecarregado/exigir configurar pagamento. Perguntado
+qual especificamente — confirmado Groq (gratuito de verdade, modelos open-source rodando rápido).
+
+API da Groq é COMPATÍVEL com o formato da OpenAI (`api.groq.com/openai/v1/chat/completions`,
+mesmo shape de request/response, `Authorization: Bearer`) — `GroqLlmDatasource` espelha
+`OpenAiLlmDatasource` quase inteiro, incluindo a mesma limitação de não ler PDF (só imagem, erro
+explícito pedindo pra trocar de provedor). Modelo usado: `qwen/qwen3.8-27b` (único com suporte a
+imagem na Groq hoje) — confirmado contra a documentação oficial (`console.groq.com/docs/vision`)
+por duas pesquisas independentes, dado que o nome do modelo é incomum (não seria a primeira vez
+nesta sessão que um ID de modelo mal confirmado quebra a integração — ver entrada da Anthropic
+acima). **Risco registrado explicitamente no código**: modelos de visão na Groq mudam/são
+descontinuados com frequência maior que os outros 3 provedores — se a extração de certificado em
+imagem começar a falhar com 404, este é o primeiro lugar a checar.
+
+Mesmos pontos mecânicos de sempre ao adicionar um provedor: `LlmProviderEscolhido.groq`, chave de
+secure storage nova, `switch` exaustivo nos 3 pontos que já tratavam os outros provedores, CSP
+(`api.groq.com` em `connect-src` — mesmo cuidado de sempre), teste novo no mesmo padrão dos
+outros 3. Quarta opção "Groq (grátis)" no seletor da tela de configuração, com aviso explícito
+sobre a limitação de PDF já nas instruções de como conseguir a chave.
+
+Ainda não testado ao vivo com uma chave real da Groq.

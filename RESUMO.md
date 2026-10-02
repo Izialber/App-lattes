@@ -1,3 +1,8 @@
+**Quarto provedor de LLM: Groq (gratuito, sem cartão de crédito)** — pedido do usuário logo
+após o Anthropic. API compatível com a OpenAI, mesma limitação de não ler PDF. Modelo
+`qwen/qwen3.8-27b` confirmado contra documentação oficial (único da Groq com suporte a imagem
+hoje). Ainda não testado ao vivo.
+
 **Terceiro provedor de LLM: Anthropic (Claude Haiku)** — motivado por um erro real ao vivo
 (Gemini sob alta demanda, "This model is currently experiencing high demand"). BYOK, mesmo padrão
 dos outros dois provedores, lê PDF nativamente (diferente da OpenAI). Revisão de código pegou um

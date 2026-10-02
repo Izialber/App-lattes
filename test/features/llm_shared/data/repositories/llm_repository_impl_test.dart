@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:certificados_lattes/core/error/failures.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/anthropic_llm_datasource.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/gemini_llm_datasource.dart';
+import 'package:certificados_lattes/features/llm_shared/data/datasources/groq_llm_datasource.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/llm_api_exception.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/llm_api_key_store.dart';
 import 'package:certificados_lattes/features/llm_shared/data/datasources/openai_llm_datasource.dart';
@@ -16,12 +17,15 @@ class MockOpenAiLlmDatasource extends Mock implements OpenAiLlmDatasource {}
 
 class MockAnthropicLlmDatasource extends Mock implements AnthropicLlmDatasource {}
 
+class MockGroqLlmDatasource extends Mock implements GroqLlmDatasource {}
+
 class MockLlmApiKeyStore extends Mock implements LlmApiKeyStore {}
 
 void main() {
   late MockGeminiLlmDatasource gemini;
   late MockOpenAiLlmDatasource openAi;
   late MockAnthropicLlmDatasource anthropic;
+  late MockGroqLlmDatasource groq;
   late MockLlmApiKeyStore keyStore;
   late LlmRepositoryImpl repository;
 
@@ -29,8 +33,9 @@ void main() {
     gemini = MockGeminiLlmDatasource();
     openAi = MockOpenAiLlmDatasource();
     anthropic = MockAnthropicLlmDatasource();
+    groq = MockGroqLlmDatasource();
     keyStore = MockLlmApiKeyStore();
-    repository = LlmRepositoryImpl(gemini, openAi, anthropic, keyStore);
+    repository = LlmRepositoryImpl(gemini, openAi, anthropic, groq, keyStore);
   });
 
   group('extrairJsonDeImagem', () {
@@ -125,6 +130,27 @@ void main() {
           .thenAnswer((_) async => 'chave-anthropic');
       when(() => anthropic.gerarJson(
             apiKey: 'chave-anthropic',
+            prompt: 'prompt',
+            imagemBytes: const [1, 2, 3],
+            mimeType: 'image/jpeg',
+          )).thenAnswer((_) async => {'titulo': 'Curso X'});
+
+      final resultado = await repository.extrairJsonDeImagem(
+        imagemBytes: const [1, 2, 3],
+        mimeType: 'image/jpeg',
+        promptExtracao: 'prompt',
+      );
+
+      expect(resultado.isRight(), isTrue);
+    });
+
+    test('chama a Groq quando o provedor configurado é groq', () async {
+      when(() => keyStore.obterProvedorEscolhido())
+          .thenAnswer((_) async => LlmProviderEscolhido.groq);
+      when(() => keyStore.obterChave(LlmProviderEscolhido.groq))
+          .thenAnswer((_) async => 'chave-groq');
+      when(() => groq.gerarJson(
+            apiKey: 'chave-groq',
             prompt: 'prompt',
             imagemBytes: const [1, 2, 3],
             mimeType: 'image/jpeg',

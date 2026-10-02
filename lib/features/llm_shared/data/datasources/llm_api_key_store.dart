@@ -16,6 +16,7 @@ class LlmApiKeyStore {
         LlmProviderEscolhido.geminiFlash => SecureStorageKeys.llmApiKeyGemini,
         LlmProviderEscolhido.gpt4oMini => SecureStorageKeys.llmApiKeyOpenAi,
         LlmProviderEscolhido.claudeHaiku => SecureStorageKeys.llmApiKeyAnthropic,
+        LlmProviderEscolhido.groq => SecureStorageKeys.llmApiKeyGroq,
       };
 
   Future<String?> obterChave(LlmProviderEscolhido provider) {

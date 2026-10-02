@@ -5,6 +5,7 @@ import '../../domain/entities/llm_provider_escolhido.dart';
 import '../../domain/repositories/llm_repository.dart';
 import '../datasources/anthropic_llm_datasource.dart';
 import '../datasources/gemini_llm_datasource.dart';
+import '../datasources/groq_llm_datasource.dart';
 import '../datasources/llm_api_exception.dart';
 import '../datasources/llm_api_key_store.dart';
 import '../datasources/openai_llm_datasource.dart';
@@ -20,9 +21,16 @@ class LlmRepositoryImpl implements LlmRepository {
   final GeminiLlmDatasource _gemini;
   final OpenAiLlmDatasource _openAi;
   final AnthropicLlmDatasource _anthropic;
+  final GroqLlmDatasource _groq;
   final LlmApiKeyStore _apiKeyStore;
 
-  const LlmRepositoryImpl(this._gemini, this._openAi, this._anthropic, this._apiKeyStore);
+  const LlmRepositoryImpl(
+    this._gemini,
+    this._openAi,
+    this._anthropic,
+    this._groq,
+    this._apiKeyStore,
+  );
 
   @override
   Future<Either<Failure, Map<String, dynamic>>> extrairJsonDeImagem({
@@ -65,6 +73,7 @@ class LlmRepositoryImpl implements LlmRepository {
           _openAi.gerarJson(apiKey: apiKey, prompt: promptMinimo),
         LlmProviderEscolhido.claudeHaiku =>
           _anthropic.gerarJson(apiKey: apiKey, prompt: promptMinimo),
+        LlmProviderEscolhido.groq => _groq.gerarJson(apiKey: apiKey, prompt: promptMinimo),
       };
       return const Right(unit);
     } on LlmApiException catch (e) {
@@ -94,6 +103,12 @@ class LlmRepositoryImpl implements LlmRepository {
           mimeType: mimeType,
         ),
       LlmProviderEscolhido.claudeHaiku => _anthropic.gerarJson(
+          apiKey: config.apiKey,
+          prompt: prompt,
+          imagemBytes: imagemBytes,
+          mimeType: mimeType,
+        ),
+      LlmProviderEscolhido.groq => _groq.gerarJson(
           apiKey: config.apiKey,
           prompt: prompt,
           imagemBytes: imagemBytes,

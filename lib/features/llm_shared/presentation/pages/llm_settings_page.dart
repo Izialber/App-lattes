@@ -61,6 +61,10 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
                   value: LlmProviderEscolhido.claudeHaiku,
                   label: Text('Claude Haiku'),
                 ),
+                ButtonSegment(
+                  value: LlmProviderEscolhido.groq,
+                  label: Text('Groq (grátis)'),
+                ),
               ],
               selected: {estado.provider},
               onSelectionChanged: testando
@@ -143,6 +147,15 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
             'Entre ou crie uma conta na Anthropic (requer cadastrar um método de pagamento).',
             'Clique em "Create Key".',
             'Copie a chave gerada e cole no campo abaixo.',
+          ],
+        ),
+      LlmProviderEscolhido.groq => (
+          'https://console.groq.com/keys',
+          const [
+            'Entre ou crie uma conta na Groq — gratuito, sem cartão de crédito.',
+            'Clique em "Create API Key" e dê um nome qualquer pra ela.',
+            'Copie a chave agora — a Groq só mostra o valor completo uma vez.',
+            'Atenção: a Groq não lê certificados em PDF neste app ainda, só imagem.',
           ],
         ),
     };
