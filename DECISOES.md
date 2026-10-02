@@ -1241,3 +1241,9 @@ de visibilidade do ícone de "Anexar comprovantes" (só aparece com um currícul
 entradas do Lattes não há nada pra comparar contra um edital). Os dois pontos de acesso coexistem
 de propósito (decisão do usuário) — Comprovantes continua com o seu, por fazer sentido no fim
 natural daquele fluxo (upload → sincronizar → montar dossiê).
+
+**Testado ao vivo**: confirmado funcionando numa janela/aba nova do navegador. Achado no caminho
+(não é bug de código, registrado só pra não repetir o susto): uma janela/aba mais antiga
+continuou mostrando só os ícones de antes mesmo depois de reload + limpar service worker/cache —
+sintoma de algum estado da PRÓPRIA aba do Chrome ter ficado preso (não do app), resolvido abrindo
+uma aba nova do zero.
