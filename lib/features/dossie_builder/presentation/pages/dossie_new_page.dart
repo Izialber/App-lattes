@@ -20,7 +20,7 @@ class DossieNewPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const VoltarAppBarButton(rotaPai: AppRoutes.capturarCertificados),
+        leading: const VoltarAppBarButton(rotaPai: AppRoutes.comprovantes),
         title: const Text('Montar dossiê'),
       ),
       body: Center(

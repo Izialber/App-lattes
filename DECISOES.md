@@ -1112,3 +1112,58 @@ não foi. Se não aparecer nenhuma entrada em "Técnico" ao reimportar um XML qu
 técnico, essa tag é a primeira coisa a revisar (comentário deixado no código apontando isso).
 
 Ainda não testado ao vivo.
+
+## Conectar o Módulo 4 (Montar Dossiê) ao módulo de Comprovantes (2026-10-02)
+
+Investigação + plano feitos em modo de planejamento (`EnterPlanMode`, com um agent de exploração
+mapeando toda a dependência antes de desenhar a mudança). O Módulo 4 (montar o dossiê de Prova de
+Títulos) estava inteiramente construído sobre o módulo antigo de captura de certificados
+(`CertificadoCapturado`), desconectado da navegação desde o redesenho do Módulo 2 — ou seja, a
+tela de "Montar dossiê" não enxergava os comprovantes reais do fluxo principal, e nem era
+alcançável pela UI (só existia um link pra `/dossie/novo` dentro de `/certificados`, também
+órfã).
+
+Achado que simplificou a migração: as entidades do `dossie_builder`
+(`Dossie`/`VinculoAprovado`/`VinculoSugeridoDossie`) já guardavam `certificadoId` como `String`
+solta, nunca tipada em `CertificadoCapturado` — só a assinatura de `DossieRepository.
+sugerirVinculos` (e a implementação, que lê bytes/metadados direto de um local store) precisaram
+mudar de verdade. Renomeado pra `comprovanteId` por clareza (mesmo padrão já usado pra
+`UploadTask.certificadoId` → `referenciaId`).
+
+Diferença de forma real entre os dois modelos: `CertificadoCapturado` tinha `tituloExtraido`/
+`instituicaoExtraida` (extraídos por LLM), que é o que a heurística de matching (interseção de
+palavras contra a descrição de cada critério do edital, limiar 0.15 — algoritmo em si não mudou)
+lia. `ComprovanteEntrada` não tem nada equivalente — é só um arquivo anexado, sem extração
+nenhuma. O texto de match passou a vir de `EntradaLattesRef` (título + subtítulo), resolvida via
+`ComprovanteEntrada.entradaId` — que não é persistida, é recalculada a cada carregamento a partir
+do `CurriculoLattes` (`gerarEntradasLattes`, mesmo padrão já usado em `ComprovantesController`).
+Por isso `sugerirVinculos` e `compilarDossieFinal` passaram a receber a lista de entradas junto
+dos comprovantes, não só uma lista sozinha como antes. Comprovante órfão (entrada removida numa
+reimportação do Lattes) usa o nome do arquivo como texto de match/título no sumário do PDF, em
+vez de ficar de fora — mesma filosofia de "nunca perder o arquivo de vista" já praticada em
+outros lugares do projeto.
+
+A migração não filtra por categoria em nenhum ponto — comprovantes de qualquer uma das 12
+categorias (técnico, graduação, pós lato/stricto sensu, formação complementar, experiência
+profissional, publicação, orientação, produção técnica, participação em evento, projeto de
+pesquisa, idioma) entram igual na sugestão de vínculo contra os critérios do edital.
+
+**Navegação**: `/dossie/novo` era inatingível pela UI antes desta mudança (só alcançável a partir
+de `/certificados`, módulo desconectado) — corrigido com um novo ícone "Montar dossiê" na AppBar
+de Comprovantes. `dossie_new_page.dart` trocou sua rota-pai de `/certificados` pra `/comprovantes`.
+
+**Revisão de código** (fork dedicado, leitura completa de todos os arquivos tocados + referências
+cruzadas): só um achado de severidade baixa, PRÉ-EXISTENTE (não introduzido por esta migração) —
+`dossie_local_store.dart`'s `_dossieDaMapa` não tem try/catch ao redor do cast de
+`comprovanteId`, então um dado corrompido lançaria uma exceção não tratada em
+`carregarChecklist`. O código original já tinha exatamente esse mesmo risco (sem fallback
+nenhum); esta migração só adicionou um fallback mais seguro (`?? v['certificadoId']`), não
+piorou nada. Fica registrado como possível follow-up, fora de escopo desta mudança.
+
+Testes reescritos em `dossie_repository_impl_test.dart` (grupos `sugerirVinculos` e
+`compilarDossieFinal`, fixtures viram `ComprovanteEntrada`/`EntradaLattesRef`, mock troca de
+`MockCertificateLocalStore` pra `MockComprovanteLocalStore`) + 2 casos novos cobrindo
+comprovante órfão (um em cada grupo). `certificate_capture` continua no repo, intocado — só
+deixou de ser a fonte de dados do Módulo 4.
+
+Ainda não testado ao vivo.

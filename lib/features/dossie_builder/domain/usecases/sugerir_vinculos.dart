@@ -1,7 +1,8 @@
 import 'package:fpdart/fpdart.dart' show Either;
 
 import '../../../../core/error/failures.dart';
-import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
+import '../../../comprovantes/domain/entities/comprovante_entrada.dart';
+import '../../../comprovantes/domain/entities/entrada_lattes_ref.dart';
 import '../entities/edital.dart';
 import '../entities/vinculo_sugerido_dossie.dart';
 import '../repositories/dossie_repository.dart';
@@ -16,11 +17,13 @@ class SugerirVinculos {
 
   Future<Either<Failure, List<VinculoSugeridoDossie>>> call({
     required Edital edital,
-    required List<CertificadoCapturado> certificadosSincronizados,
+    required List<ComprovanteEntrada> comprovantesSincronizados,
+    required List<EntradaLattesRef> entradas,
   }) {
     return _repository.sugerirVinculos(
       edital: edital,
-      certificadosSincronizados: certificadosSincronizados,
+      comprovantesSincronizados: comprovantesSincronizados,
+      entradas: entradas,
     );
   }
 }

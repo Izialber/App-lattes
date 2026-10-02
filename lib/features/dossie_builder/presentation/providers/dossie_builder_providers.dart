@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/di/injection.dart';
-import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
-import '../../../certificate_capture/presentation/providers/certificate_capture_providers.dart';
+import '../../../comprovantes/domain/entities/comprovante_entrada.dart';
+import '../../../comprovantes/domain/entities/entrada_lattes_ref.dart';
+import '../../../comprovantes/domain/entities/mapear_entradas_lattes.dart';
+import '../../../comprovantes/presentation/providers/comprovantes_providers.dart';
+import '../../../lattes_parser/presentation/providers/lattes_providers.dart';
 import '../../../llm_shared/presentation/providers/llm_shared_providers.dart';
 import '../../data/datasources/edital_upload_datasource.dart';
 import '../../data/datasources/llm_edital_datasource.dart';
@@ -50,7 +53,7 @@ final dossieRepositoryProvider = Provider<DossieRepository>(
     ref.watch(pdfMergeDatasourceProvider),
     ref.watch(taskRunnerProvider),
     ref.watch(dossieLocalStoreProvider),
-    ref.watch(certificateLocalStoreProvider),
+    ref.watch(comprovanteLocalStoreProvider),
   ),
 );
 
@@ -73,14 +76,20 @@ final compilarDossieProvider = Provider(
 /// Estado das telas do módulo 4 — cobre tanto a criação de um dossiê novo
 /// quanto o checklist/compilação de um já existente, porque as duas telas
 /// compartilham o mesmo `Notifier` (evita duplicar a lógica de carregar
-/// edital/certificados/sugestões).
+/// edital/comprovantes/sugestões). `entradas` vem junto de
+/// `comprovantesSincronizados` porque `ComprovanteEntrada` não carrega
+/// texto descritivo (título/instituição) — isso vive na entrada do
+/// currículo ligada por `entradaId` (ver DECISOES.md, "Conectar o Módulo
+/// 4"), recalculada a cada carregamento (nunca persistida, mesmo padrão de
+/// `ComprovantesController`).
 class DossieBuilderState {
   final bool carregando;
   final String? erro;
   final Dossie? dossie;
   final Edital? edital;
   final List<VinculoSugeridoDossie> sugestoes;
-  final List<CertificadoCapturado> certificadosSincronizados;
+  final List<ComprovanteEntrada> comprovantesSincronizados;
+  final List<EntradaLattesRef> entradas;
 
   const DossieBuilderState({
     this.carregando = false,
@@ -88,7 +97,8 @@ class DossieBuilderState {
     this.dossie,
     this.edital,
     this.sugestoes = const [],
-    this.certificadosSincronizados = const [],
+    this.comprovantesSincronizados = const [],
+    this.entradas = const [],
   });
 
   DossieBuilderState copyWith({
@@ -98,7 +108,8 @@ class DossieBuilderState {
     Dossie? dossie,
     Edital? edital,
     List<VinculoSugeridoDossie>? sugestoes,
-    List<CertificadoCapturado>? certificadosSincronizados,
+    List<ComprovanteEntrada>? comprovantesSincronizados,
+    List<EntradaLattesRef>? entradas,
   }) {
     return DossieBuilderState(
       carregando: carregando ?? this.carregando,
@@ -106,7 +117,8 @@ class DossieBuilderState {
       dossie: dossie ?? this.dossie,
       edital: edital ?? this.edital,
       sugestoes: sugestoes ?? this.sugestoes,
-      certificadosSincronizados: certificadosSincronizados ?? this.certificadosSincronizados,
+      comprovantesSincronizados: comprovantesSincronizados ?? this.comprovantesSincronizados,
+      entradas: entradas ?? this.entradas,
     );
   }
 }
@@ -186,13 +198,18 @@ class DossieBuilderController extends Notifier<DossieBuilderState> {
       return;
     }
 
-    final todosOsCertificados = await ref.read(certificateRepositoryProvider).listarTodos();
-    final sincronizados =
-        todosOsCertificados.where((c) => c.status == StatusCertificado.sincronizado).toList();
+    final curriculo = ref.read(lattesImportControllerProvider).curriculo;
+    final entradas = curriculo == null ? const <EntradaLattesRef>[] : gerarEntradasLattes(curriculo);
+
+    final todosOsComprovantes = await ref.read(comprovanteRepositoryProvider).listarTodos();
+    final sincronizados = todosOsComprovantes
+        .where((c) => c.statusSincronizacao == StatusSincronizacaoComprovante.sincronizado)
+        .toList();
 
     final resultadoSugestoes = await ref.read(sugerirVinculosProvider).call(
           edital: edital,
-          certificadosSincronizados: sincronizados,
+          comprovantesSincronizados: sincronizados,
+          entradas: entradas,
         );
 
     resultadoSugestoes.match(
@@ -201,14 +218,16 @@ class DossieBuilderController extends Notifier<DossieBuilderState> {
         erro: falha.message,
         dossie: dossie,
         edital: edital,
-        certificadosSincronizados: sincronizados,
+        comprovantesSincronizados: sincronizados,
+        entradas: entradas,
       ),
       (sugestoes) => state = state.copyWith(
         carregando: false,
         dossie: dossie,
         edital: edital,
         sugestoes: sugestoes,
-        certificadosSincronizados: sincronizados,
+        comprovantesSincronizados: sincronizados,
+        entradas: entradas,
       ),
     );
   }
@@ -254,7 +273,8 @@ class DossieBuilderController extends Notifier<DossieBuilderState> {
   Future<void> compilar(String dossieId) async {
     state = state.copyWith(carregando: true, limparErro: true);
 
-    final resultado = await ref.read(compilarDossieProvider).call(dossieId);
+    final resultado =
+        await ref.read(compilarDossieProvider).call(dossieId, entradas: state.entradas);
 
     resultado.match(
       (falha) => state = state.copyWith(carregando: false, erro: falha.message),

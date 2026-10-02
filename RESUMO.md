@@ -1,3 +1,12 @@
+**Módulo 4 (Montar Dossiê) conectado ao módulo de Comprovantes** — até aqui o Módulo 4
+dependia inteiramente do módulo antigo de certificados, desconectado da navegação desde o
+redesenho do Módulo 2 — a tela de "Montar dossiê" não enxergava os comprovantes reais, e nem era
+alcançável pela UI. A heurística de match (interseção de palavras contra os critérios do edital)
+não mudou — só passou a ler o texto de título/instituição da entrada do currículo ligada ao
+comprovante (`ComprovanteEntrada` não tem extração por LLM como o módulo antigo tinha). Novo
+ícone "Montar dossiê" na tela de Comprovantes fecha um buraco de navegação que já existia antes
+desta mudança. Ainda não testado ao vivo.
+
 **Botão de voltar adicionado em todas as telas internas** — o app navegava só com
 `context.go()` (substitui a rota, não empilha), então o Navigator nunca tinha uma pilha real de
 voltar. Novo `VoltarAppBarButton` reutilizável, apontando pra rota-pai lógica de cada tela (ex.:

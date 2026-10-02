@@ -6,7 +6,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/routing/voltar_app_bar_button.dart';
-import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
+import '../../../comprovantes/domain/entities/comprovante_entrada.dart';
+import '../../../comprovantes/domain/entities/entrada_lattes_ref.dart';
 import '../../domain/entities/criterio_pontuacao.dart';
 import '../../domain/entities/edital.dart';
 import '../../domain/entities/vinculo_aprovado.dart';
@@ -131,30 +132,33 @@ class _DossieChecklistPageState extends ConsumerState<DossieChecklistPage> {
         ),
         const Divider(height: 32),
         Text(
-          'Certificados sincronizados (${estado.certificadosSincronizados.length})',
+          'Comprovantes sincronizados (${estado.comprovantesSincronizados.length})',
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        if (estado.certificadosSincronizados.isEmpty)
+        if (estado.comprovantesSincronizados.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Text(
-              'Nenhum certificado sincronizado com o Drive ainda. Volte para a tela de '
-              'certificados, sincronize os que quiser incluir, e depois recarregue esta página.',
+              'Nenhum comprovante sincronizado com o Drive ainda. Volte para a tela de '
+              'Comprovantes, sincronize os que quiser incluir, e depois recarregue esta página.',
             ),
           )
         else
-          for (final certificado in estado.certificadosSincronizados)
+          for (final comprovante in estado.comprovantesSincronizados)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: _CertificadoVinculoTile(
-                certificado: certificado,
+              child: _ComprovanteVinculoTile(
+                comprovante: comprovante,
+                entrada: estado.entradas
+                    .where((e) => e.id == comprovante.entradaId)
+                    .firstOrNull,
                 edital: edital,
                 sugestao: estado.sugestoes
-                    .where((s) => s.certificadoId == certificado.id)
+                    .where((s) => s.comprovanteId == comprovante.id)
                     .firstOrNull,
                 decisaoAtual: estado.dossie?.vinculosRevisados
-                    .where((v) => v.certificadoId == certificado.id)
+                    .where((v) => v.comprovanteId == comprovante.id)
                     .firstOrNull,
               ),
             ),
@@ -222,24 +226,26 @@ class _DossieChecklistPageState extends ConsumerState<DossieChecklistPage> {
   }
 }
 
-class _CertificadoVinculoTile extends ConsumerStatefulWidget {
-  final CertificadoCapturado certificado;
+class _ComprovanteVinculoTile extends ConsumerStatefulWidget {
+  final ComprovanteEntrada comprovante;
+  final EntradaLattesRef? entrada;
   final Edital edital;
   final VinculoSugeridoDossie? sugestao;
   final VinculoAprovado? decisaoAtual;
 
-  const _CertificadoVinculoTile({
-    required this.certificado,
+  const _ComprovanteVinculoTile({
+    required this.comprovante,
+    required this.entrada,
     required this.edital,
     required this.sugestao,
     required this.decisaoAtual,
   });
 
   @override
-  ConsumerState<_CertificadoVinculoTile> createState() => _CertificadoVinculoTileState();
+  ConsumerState<_ComprovanteVinculoTile> createState() => _ComprovanteVinculoTileState();
 }
 
-class _CertificadoVinculoTileState extends ConsumerState<_CertificadoVinculoTile> {
+class _ComprovanteVinculoTileState extends ConsumerState<_ComprovanteVinculoTile> {
   String? _criterioSelecionadoId;
 
   @override
@@ -259,15 +265,15 @@ class _CertificadoVinculoTileState extends ConsumerState<_CertificadoVinculoTile
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.certificado.tituloExtraido ?? 'Certificado',
+              widget.entrada?.titulo ?? widget.comprovante.nomeArquivo,
               style: Theme.of(context).textTheme.titleSmall,
             ),
-            if (widget.certificado.instituicaoExtraida != null)
+            if (widget.entrada != null && widget.entrada!.subtitulo.isNotEmpty)
               Text(
-                widget.certificado.instituicaoExtraida!,
+                widget.entrada!.subtitulo,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-            if (widget.certificado.mimeType == 'application/pdf')
+            if (widget.comprovante.mimeType == 'application/pdf')
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
@@ -346,7 +352,7 @@ class _CertificadoVinculoTileState extends ConsumerState<_CertificadoVinculoTile
     if (criterioId == null) return;
     ref.read(dossieBuilderControllerProvider.notifier).registrarDecisao(
           VinculoAprovado(
-            certificadoId: widget.certificado.id,
+            comprovanteId: widget.comprovante.id,
             criterioId: criterioId,
             decisao: decisao,
           ),

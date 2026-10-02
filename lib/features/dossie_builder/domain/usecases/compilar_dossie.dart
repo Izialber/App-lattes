@@ -1,6 +1,7 @@
 import 'package:fpdart/fpdart.dart' show Either;
 
 import '../../../../core/error/failures.dart';
+import '../../../comprovantes/domain/entities/entrada_lattes_ref.dart';
 import '../entities/dossie.dart';
 import '../repositories/dossie_repository.dart';
 
@@ -25,7 +26,10 @@ class CompilarDossie {
 
   const CompilarDossie(this._repository);
 
-  Future<Either<Failure, Dossie>> call(String dossieId) {
-    return _repository.compilarDossieFinal(dossieId);
+  Future<Either<Failure, Dossie>> call(
+    String dossieId, {
+    required List<EntradaLattesRef> entradas,
+  }) {
+    return _repository.compilarDossieFinal(dossieId, entradas: entradas);
   }
 }

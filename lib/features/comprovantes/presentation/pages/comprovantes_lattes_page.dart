@@ -65,6 +65,16 @@ class _ComprovantesLattesPageState extends ConsumerState<ComprovantesLattesPage>
             icon: const Icon(Icons.upload_file_outlined),
             onPressed: () => context.go(AppRoutes.importarLattes),
           ),
+          // Único ponto de entrada pro Módulo 4 hoje — /dossie/novo só era
+          // alcançável a partir de /certificados (módulo antigo,
+          // desconectado da navegação), ou seja, o Módulo 4 inteiro estava
+          // inatingível pela UI antes deste ícone (ver DECISOES.md,
+          // "Conectar o Módulo 4").
+          IconButton(
+            tooltip: 'Montar dossiê',
+            icon: const Icon(Icons.description_outlined),
+            onPressed: () => context.go(AppRoutes.dossieNovo),
+          ),
         ],
       ),
       body: Column(

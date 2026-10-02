@@ -3,8 +3,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/error/failures.dart';
 import '../../../../core/platform/task_runner/task_runner.dart';
-import '../../../certificate_capture/data/local/certificate_local_store.dart';
-import '../../../certificate_capture/domain/entities/certificado_capturado.dart';
+import '../../../comprovantes/data/local/comprovante_local_store.dart';
+import '../../../comprovantes/domain/entities/comprovante_entrada.dart';
+import '../../../comprovantes/domain/entities/entrada_lattes_ref.dart';
 import '../../domain/entities/criterio_pontuacao.dart';
 import '../../domain/entities/dossie.dart';
 import '../../domain/entities/edital.dart';
@@ -33,14 +34,14 @@ class DossieRepositoryImpl implements DossieRepository {
   final TaskRunner _taskRunner;
   final DecidirEstrategiaDeMemoria _decidirEstrategia;
   final DossieLocalStore _localStore;
-  final CertificateLocalStore _certificateLocalStore;
+  final ComprovanteLocalStore _comprovanteLocalStore;
 
   const DossieRepositoryImpl(
     this._llmEditalDatasource,
     this._pdfMergeDatasource,
     this._taskRunner,
     this._localStore,
-    this._certificateLocalStore, [
+    this._comprovanteLocalStore, [
     this._decidirEstrategia = const DecidirEstrategiaDeMemoria(),
   ]);
 
@@ -99,35 +100,45 @@ class DossieRepositoryImpl implements DossieRepository {
   @override
   Future<Either<Failure, List<VinculoSugeridoDossie>>> sugerirVinculos({
     required Edital edital,
-    required List<CertificadoCapturado> certificadosSincronizados,
+    required List<ComprovanteEntrada> comprovantesSincronizados,
+    required List<EntradaLattesRef> entradas,
   }) async {
+    final entradasPorId = {for (final e in entradas) e.id: e};
     final sugestoes = <VinculoSugeridoDossie>[];
-    for (final certificado in certificadosSincronizados) {
-      final sugestao = _melhorCriterioPara(certificado, edital.criterios);
+    for (final comprovante in comprovantesSincronizados) {
+      final sugestao = _melhorCriterioPara(
+        comprovante,
+        entradasPorId[comprovante.entradaId],
+        edital.criterios,
+      );
       if (sugestao != null) sugestoes.add(sugestao);
     }
     return Right(sugestoes);
   }
 
   /// Heurística pura de similaridade textual (sem LLM): compara o
-  /// título/instituição extraídos do certificado contra a descrição de
-  /// cada critério do edital, por sobreposição de palavras (Jaccard
-  /// simplificado — interseção sobre o tamanho da descrição do critério).
-  /// Decisão deliberada de NÃO chamar o LLM de novo aqui: o resultado é só
-  /// uma sugestão inicial que o usuário sempre revisa no checklist, então
-  /// o custo/latência extra de mais uma chamada de API não se paga —
-  /// ver DECISOES.md.
+  /// título/subtítulo da entrada do currículo ligada ao comprovante
+  /// (`ComprovanteEntrada` em si não carrega texto descritivo nenhum — é só
+  /// um arquivo anexado, ver DECISOES.md "Conectar o Módulo 4") contra a
+  /// descrição de cada critério do edital, por sobreposição de palavras
+  /// (Jaccard simplificado — interseção sobre o tamanho da descrição do
+  /// critério). [entrada] nula (comprovante órfão — entrada removida numa
+  /// reimportação do Lattes) cai no nome do arquivo em vez de ficar de fora
+  /// do match. Decisão deliberada de NÃO chamar LLM aqui: o resultado é só
+  /// uma sugestão inicial que o usuário sempre revisa no checklist — ver
+  /// DECISOES.md.
   VinculoSugeridoDossie? _melhorCriterioPara(
-    CertificadoCapturado certificado,
+    ComprovanteEntrada comprovante,
+    EntradaLattesRef? entrada,
     List<CriterioPontuacao> criterios,
   ) {
     const limiarMinimoDeConfianca = 0.15;
 
-    final textoCertificado =
-        '${certificado.tituloExtraido ?? ''} ${certificado.instituicaoExtraida ?? ''}'
-            .toLowerCase();
-    final palavrasCertificado = _palavrasRelevantes(textoCertificado);
-    if (palavrasCertificado.isEmpty) return null;
+    final textoComprovante = entrada == null
+        ? comprovante.nomeArquivo.toLowerCase()
+        : '${entrada.titulo} ${entrada.subtitulo}'.toLowerCase();
+    final palavrasComprovante = _palavrasRelevantes(textoComprovante);
+    if (palavrasComprovante.isEmpty) return null;
 
     CriterioPontuacao? melhorCriterio;
     double melhorPontuacao = 0;
@@ -136,7 +147,7 @@ class DossieRepositoryImpl implements DossieRepository {
       final palavrasCriterio = _palavrasRelevantes(criterio.descricao.toLowerCase());
       if (palavrasCriterio.isEmpty) continue;
 
-      final intersecao = palavrasCertificado.intersection(palavrasCriterio).length;
+      final intersecao = palavrasComprovante.intersection(palavrasCriterio).length;
       final pontuacao = intersecao / palavrasCriterio.length;
       if (pontuacao > melhorPontuacao) {
         melhorPontuacao = pontuacao;
@@ -146,7 +157,7 @@ class DossieRepositoryImpl implements DossieRepository {
 
     if (melhorCriterio == null || melhorPontuacao < limiarMinimoDeConfianca) return null;
     return VinculoSugeridoDossie(
-      certificadoId: certificado.id,
+      comprovanteId: comprovante.id,
       criterioId: melhorCriterio.id,
       confianca: melhorPontuacao.clamp(0, 1),
     );
@@ -166,11 +177,11 @@ class DossieRepositoryImpl implements DossieRepository {
       return Left(DossieFailure('Dossiê $dossieId não encontrado.'));
     }
 
-    // Substitui uma decisão anterior para o mesmo par certificado/critério
+    // Substitui uma decisão anterior para o mesmo par comprovante/critério
     // em vez de duplicar — o usuário pode mudar de ideia no checklist.
     final semDuplicata = dossie.vinculosRevisados
         .where((v) =>
-            !(v.certificadoId == decisao.certificadoId && v.criterioId == decisao.criterioId))
+            !(v.comprovanteId == decisao.comprovanteId && v.criterioId == decisao.criterioId))
         .toList();
 
     final atualizado = dossie.copyWith(vinculosRevisados: [...semDuplicata, decisao]);
@@ -179,7 +190,10 @@ class DossieRepositoryImpl implements DossieRepository {
   }
 
   @override
-  Future<Either<Failure, Dossie>> compilarDossieFinal(String dossieId) async {
+  Future<Either<Failure, Dossie>> compilarDossieFinal(
+    String dossieId, {
+    required List<EntradaLattesRef> entradas,
+  }) async {
     final dossie = _localStore.buscarDossie(dossieId);
     if (dossie == null) {
       return Left(DossieFailure('Dossiê $dossieId não encontrado.'));
@@ -195,32 +209,33 @@ class DossieRepositoryImpl implements DossieRepository {
 
     await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.compilando));
 
+    final entradasPorId = {for (final e in entradas) e.id: e};
     final imagensElegiveis = <List<int>>[];
     final titulos = <String>[];
     var totalPdfDeOrigemExcluidos = 0;
 
     for (final vinculo in aprovados) {
-      final certificado = _certificateLocalStore.buscar(vinculo.certificadoId);
-      final bytes = _certificateLocalStore.lerImagem(vinculo.certificadoId);
-      if (certificado == null || bytes == null) continue;
+      final comprovante = _comprovanteLocalStore.buscar(vinculo.comprovanteId);
+      final bytes = _comprovanteLocalStore.lerBytes(vinculo.comprovanteId);
+      if (comprovante == null || bytes == null) continue;
 
       // PDFs de origem não podem ser mesclados automaticamente ainda — ver
       // docstring de PdfMergeDatasource. Excluídos silenciosamente do PDF
       // final em vez de travar a compilação inteira por causa deles.
-      if (certificado.mimeType == 'application/pdf') {
+      if (comprovante.mimeType == 'application/pdf') {
         totalPdfDeOrigemExcluidos++;
         continue;
       }
 
       imagensElegiveis.add(bytes);
-      titulos.add(certificado.tituloExtraido ?? 'Certificado');
+      titulos.add(entradasPorId[comprovante.entradaId]?.titulo ?? comprovante.nomeArquivo);
     }
 
     if (imagensElegiveis.isEmpty) {
       final mensagem = totalPdfDeOrigemExcluidos > 0
-          ? 'Todos os $totalPdfDeOrigemExcluidos certificados aprovados são PDF de origem, '
+          ? 'Todos os $totalPdfDeOrigemExcluidos comprovantes aprovados são PDF de origem, '
               'que ainda não pode ser mesclado automaticamente.'
-          : 'Nenhum certificado aprovado tem imagem disponível localmente.';
+          : 'Nenhum comprovante aprovado tem arquivo disponível localmente.';
       await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.falhaCompilacao));
       return Left(DossieFailure(mensagem));
     }

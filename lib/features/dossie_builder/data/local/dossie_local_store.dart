@@ -54,7 +54,7 @@ class DossieLocalStore {
         'status': d.status.name,
         'vinculosRevisados': d.vinculosRevisados
             .map((v) => {
-                  'certificadoId': v.certificadoId,
+                  'comprovanteId': v.comprovanteId,
                   'criterioId': v.criterioId,
                   'decisao': v.decisao.name,
                   'observacaoUsuario': v.observacaoUsuario,
@@ -77,7 +77,11 @@ class DossieLocalStore {
       vinculosRevisados: vinculosBrutos.map((vBruto) {
         final v = Map<String, dynamic>.from(vBruto as Map);
         return VinculoAprovado(
-          certificadoId: v['certificadoId'] as String,
+          // Fallback pra chave antiga ('certificadoId'): nenhum dossiê real
+          // foi compilado antes desta migração (Módulo 4 nunca testado ao
+          // vivo, ver DECISOES.md), então isto é só segurança defensiva, não
+          // compatibilidade de dado real.
+          comprovanteId: (v['comprovanteId'] ?? v['certificadoId']) as String,
           criterioId: v['criterioId'] as String,
           decisao: DecisaoVinculo.values.byName(v['decisao'] as String),
           observacaoUsuario: v['observacaoUsuario'] as String?,
