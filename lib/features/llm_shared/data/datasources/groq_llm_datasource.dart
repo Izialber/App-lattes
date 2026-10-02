@@ -18,13 +18,22 @@ import 'llm_json_utils.dart';
 /// descontinuados com frequência maior que os outros provedores. Se a
 /// extração de certificado em imagem parar de funcionar com erro 404/
 /// "model decommissioned", este é o primeiro lugar a checar.
+///
+/// Dois modelos diferentes, não um só: achado ao vivo — usar o modelo de
+/// visão também pra texto puro (ex.: interpretar um edital inteiro) estoura
+/// o limite de tokens por minuto do plano gratuito da Groq, que é BEM mais
+/// apertado pro modelo de visão (7000 TPM) do que pros modelos de texto
+/// (`llama-3.1-8b-instant`, 6000 TPM mas sem o overhead de processar
+/// imagem — na prática aguenta textos mais longos antes de estourar, e tem
+/// RPM/RPD maiores). Visão só entra quando há de fato uma imagem anexada.
 class GroqLlmDatasource {
   GroqLlmDatasource([Dio? dio]) : _dio = dio ?? Dio();
 
   final Dio _dio;
 
   static const _endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  static const _model = 'qwen/qwen3.8-27b';
+  static const _modeloTexto = 'llama-3.1-8b-instant';
+  static const _modeloVisao = 'qwen/qwen3.8-27b';
 
   Future<Map<String, dynamic>> gerarJson({
     required String apiKey,
@@ -57,7 +66,7 @@ class GroqLlmDatasource {
         _endpoint,
         options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
         data: {
-          'model': _model,
+          'model': imagemBytes != null && mimeType != null ? _modeloVisao : _modeloTexto,
           'response_format': {'type': 'json_object'},
           'messages': [
             {'role': 'user', 'content': content},
@@ -65,7 +74,19 @@ class GroqLlmDatasource {
         },
       );
     } on DioException catch (e) {
-      throw LlmApiException.deChamadaHttp('Groq', e);
+      final excecao = LlmApiException.deChamadaHttp('Groq', e);
+      // "Request too large... tokens per minute (ITPM)" é a mensagem bruta
+      // da Groq quando o texto enviado estoura a cota do plano gratuito —
+      // acontece com editais longos. Mensagem técnica da API trocada por
+      // uma acionável, mesmo espírito do aviso de PDF acima.
+      if (excecao.message.contains('tokens per minute')) {
+        throw const LlmApiException(
+          'Este texto é grande demais pro plano gratuito da Groq (limite de tokens por '
+          'minuto). Troque para outro provedor em Configurações pra este documento '
+          '(Gemini Flash tem limite bem mais folgado).',
+        );
+      }
+      throw excecao;
     }
 
     return decodificarJsonDoModelo(_extrairTexto(response.data));

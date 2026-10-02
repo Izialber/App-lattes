@@ -1247,3 +1247,25 @@ natural daquele fluxo (upload → sincronizar → montar dossiê).
 continuou mostrando só os ícones de antes mesmo depois de reload + limpar service worker/cache —
 sintoma de algum estado da PRÓPRIA aba do Chrome ter ficado preso (não do app), resolvido abrindo
 uma aba nova do zero.
+
+## Bug achado ao vivo: Groq estourava limite de tokens em editais longos (2026-10-02)
+
+Primeiro teste real do provedor Groq: usuário tentou extrair critérios de um edital real, erro
+da própria API: *"Request too large for model qwen/qwen3.8-27b ... on input tokens per minute
+(ITPM): Limit 7000, Requested 35830"*. Causa: `GroqLlmDatasource` usava o MESMO modelo
+(`qwen/qwen3.8-27b`, o único com suporte a imagem na Groq) pra tudo, inclusive texto puro — mas
+esse modelo de visão tem cota de tokens por minuto bem mais apertada (7000 TPM) no plano
+gratuito do que modelos de texto puro da Groq.
+
+**Fix**: dois modelos agora, escolhidos por `imagemBytes != null` — `llama-3.1-8b-instant` pra
+texto puro (interpretar edital), `qwen/qwen3.8-27b` só quando há imagem de fato (extrair
+certificado). Também: a mensagem bruta da API ("Request too large... tokens per minute") agora
+vira uma mensagem clara e acionável ("Este texto é grande demais pro plano gratuito da Groq...
+troque de provedor"), mesmo espírito do aviso já existente pra PDF.
+
+**Limitação que continua existindo, não resolvida**: mesmo com o modelo de texto, o plano
+gratuito da Groq tem só 6000 TPM — um edital MUITO longo ainda pode estourar esse limite (o caso
+relatado pediu 35830 tokens, quase 6x o teto). Não há como contornar isso sem truncar o texto do
+edital (arriscado, perderia conteúdo) ou mudar de provedor pra documentos grandes — por ora, a
+mensagem de erro clara já orienta o usuário a trocar de provedor quando isso acontecer, aceito
+como limitação inerente ao "gratuito" que o próprio usuário pediu.
