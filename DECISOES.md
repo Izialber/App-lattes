@@ -1203,4 +1203,6 @@ das três integrações sem essa garantia adicional — fica registrado como pos
 (a Anthropic tem um recurso de structured outputs mais novo, não investigado a fundo ainda).
 
 Teste novo em `llm_repository_impl_test.dart` cobrindo o novo provedor, mesmo padrão do teste já
-existente pra OpenAI. Ainda não testado ao vivo com uma chave real da Anthropic.
+existente pra OpenAI. **Testado ao vivo (UI)**: terceira opção "Claude Haiku" aparece
+corretamente no seletor, com instruções específicas (`console.anthropic.com/settings/keys`).
+Ainda falta testar a chamada real à API (depende de uma chave de API da Anthropic do usuário).
