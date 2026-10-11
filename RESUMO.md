@@ -1,3 +1,8 @@
+**Nova aba "Usuários" no painel de admin** — mostra quem já resgatou um código de convite
+(Google ou e-mail/senha), com data e qual código usou. NÃO é histórico de login (o app não
+registra cada login) — reaproveita a coleção `acessos_autorizados` que já existia pro gate de
+login Google, nenhuma escrita nova no Firestore. Ainda não testado ao vivo.
+
 **Tag XML de "Técnico" confirmada contra um XML real de outro projeto open-source** — pendência
 em aberto desde a divisão técnico/graduação/pós (abaixo); o palpite anterior
 (`ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE`) não existe em nenhum XML real, confirmado contra um

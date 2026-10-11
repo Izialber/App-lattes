@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/config/firebase_config.dart';
 import '../../data/repositories/codigo_acesso_repository_impl.dart';
+import '../../domain/entities/acesso_autorizado.dart';
 import '../../domain/entities/codigo_acesso.dart';
 import '../../domain/repositories/codigo_acesso_repository.dart';
 
@@ -106,3 +107,58 @@ class AdminCodigosController extends Notifier<AdminCodigosState> {
 
 final adminCodigosControllerProvider =
     NotifierProvider<AdminCodigosController, AdminCodigosState>(AdminCodigosController.new);
+
+/// Estado da aba "Usuários" do painel de admin — ver `AcessoAutorizado`
+/// (não é histórico de login, é só quem já ganhou acesso e quando).
+class AdminUsuariosState {
+  final bool carregando;
+  final List<AcessoAutorizado> usuarios;
+  final String? erro;
+
+  const AdminUsuariosState({this.carregando = false, this.usuarios = const [], this.erro});
+
+  AdminUsuariosState copyWith({
+    bool? carregando,
+    List<AcessoAutorizado>? usuarios,
+    String? erro,
+    bool limparErro = false,
+  }) {
+    return AdminUsuariosState(
+      carregando: carregando ?? this.carregando,
+      usuarios: usuarios ?? this.usuarios,
+      erro: limparErro ? null : (erro ?? this.erro),
+    );
+  }
+}
+
+class AdminUsuariosController extends Notifier<AdminUsuariosState> {
+  @override
+  AdminUsuariosState build() {
+    _carregar();
+    return const AdminUsuariosState(carregando: true);
+  }
+
+  Future<void> _carregar() async {
+    try {
+      final resultado = await ref.read(adminCodigoAcessoRepositoryProvider).listarUsuariosAutorizados();
+      resultado.match(
+        (falha) => state = state.copyWith(carregando: false, erro: falha.message),
+        (usuarios) => state = state.copyWith(carregando: false, usuarios: usuarios),
+      );
+    } catch (e) {
+      // Mesmo cuidado de sempre com chamada fire-and-forget disparada de
+      // dentro de build() — ver DECISOES.md, bug de renderização quebrada.
+      state = state.copyWith(carregando: false, erro: 'Falha ao carregar usuários: $e');
+    }
+  }
+
+  void limparErro() => state = state.copyWith(limparErro: true);
+
+  Future<void> recarregar() async {
+    state = state.copyWith(carregando: true, limparErro: true);
+    await _carregar();
+  }
+}
+
+final adminUsuariosControllerProvider =
+    NotifierProvider<AdminUsuariosController, AdminUsuariosState>(AdminUsuariosController.new);

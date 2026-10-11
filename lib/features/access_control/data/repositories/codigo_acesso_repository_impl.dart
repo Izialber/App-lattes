@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fpdart/fpdart.dart' show Either, Left, Right, Unit, unit;
 
 import '../../../../core/error/failures.dart';
+import '../../domain/entities/acesso_autorizado.dart';
 import '../../domain/entities/codigo_acesso.dart';
 import '../../domain/repositories/codigo_acesso_repository.dart';
 
@@ -193,6 +194,26 @@ class CodigoAcessoRepositoryImpl implements CodigoAcessoRepository {
       return const Right(unit);
     } catch (e) {
       return Left(AccessCodeFailure('Falha ao revogar código: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<AcessoAutorizado>>> listarUsuariosAutorizados() async {
+    try {
+      final snap = await _db
+          .collection(_colecaoAcessos)
+          .orderBy('autorizadoEm', descending: true)
+          .get();
+      return Right(snap.docs.map((doc) {
+        final dados = doc.data();
+        return AcessoAutorizado(
+          email: dados['email'] as String? ?? doc.id,
+          autorizadoEm: (dados['autorizadoEm'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          codigoUsado: dados['codigoUsado'] as String? ?? '—',
+        );
+      }).toList());
+    } catch (e) {
+      return Left(AccessCodeFailure('Falha ao listar usuários: $e'));
     }
   }
 }

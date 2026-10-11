@@ -1412,3 +1412,33 @@ profissionalizante) — deixado de fora de propósito, documentado aqui caso o u
 
 **Ainda não testado ao vivo com um XML real contendo curso técnico** — a confirmação é contra o
 schema (via o fixture de outro projeto), não contra uma importação de verdade nesta sessão.
+
+## Aba "Usuários" no painel de admin (2026-10-11)
+
+Pedido do usuário: "me mostrando os usuários e quando e que fizeram ao logar". Antes disso, o
+painel de admin (`/admin/codigos`) só mostrava os CÓDIGOS de convite — pra ver quem usou um
+código era preciso abrir cada código e ler o rótulo "Usado por X em Y".
+
+**Limitação deixada explícita pro usuário e documentada aqui**: isto NÃO é um histórico de
+login. O app não registra uma entrada a cada vez que alguém loga (isso exigiria escrever no
+Firestore em todo login, custo/complexidade não pedidos) — é a lista de quem já RESGATOU um
+código de convite com sucesso, com o momento único em que isso aconteceu (`autorizadoEm`) e qual
+código usou. Cobre os dois fluxos de login (Google e e-mail/senha), porque os dois passam por
+`resgatarCodigo`, que já grava em `acessos_autorizados` (ver decisão "Códigos de convite" acima)
+— reaproveitado, nenhuma escrita nova precisou ser criada.
+
+**O que mudou**:
+- `AcessoAutorizado` (entidade nova, `access_control/domain/entities/`): `email`, `autorizadoEm`,
+  `codigoUsado`.
+- `CodigoAcessoRepository.listarUsuariosAutorizados()` — lê `acessos_autorizados` ordenado por
+  `autorizadoEm` decrescente. Regra do Firestore já permitia `list` pro admin nessa coleção desde
+  a criação do `firestore.rules` original — nenhuma mudança de regra necessária.
+- `AdminUsuariosController`/`AdminUsuariosState` (mesmo padrão do `AdminCodigosController` já
+  existente) — usa `adminCodigoAcessoRepositoryProvider` (app Firebase secundário de admin, ver
+  decisão de isolamento acima), não o provider padrão.
+- `AdminCodigosPage` ganhou `TabBar`/`TabBarView` com duas abas: "Códigos" (já existia) e
+  "Usuários" (novo) — só aparecem depois de autenticado como admin.
+
+**Ainda não testado ao vivo** — sem SDK Flutter neste ambiente (mesma limitação de sempre).
+Nenhum teste novo escrito (mesmo motivo do fix de Firestore anterior: mockar `cloud_firestore`
+não é trivial e não dava pra verificar se compilava aqui).

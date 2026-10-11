@@ -8,6 +8,7 @@ import '../../../../core/config/admin_config.dart';
 import '../../../../core/config/firebase_config.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/routing/voltar_app_bar_button.dart';
+import '../../domain/entities/acesso_autorizado.dart';
 import '../../domain/entities/codigo_acesso.dart';
 import '../providers/codigo_acesso_providers.dart';
 
@@ -30,18 +31,28 @@ class AdminCodigosPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(firebaseAuthStateProvider);
+    final autenticadoComoAdmin = authState.valueOrNull?.email?.toLowerCase() == AdminConfig.email;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: const VoltarAppBarButton(rotaPai: AppRoutes.importarLattes),
-        title: const Text('Códigos de convite'),
-      ),
-      body: authState.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Falha ao checar sessão: $e')),
-        data: (user) => user?.email?.toLowerCase() == AdminConfig.email
-            ? const _PainelCodigos()
-            : const _LoginAdmin(),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: const VoltarAppBarButton(rotaPai: AppRoutes.importarLattes),
+          title: const Text('Administração'),
+          bottom: autenticadoComoAdmin
+              ? const TabBar(tabs: [
+                  Tab(text: 'Códigos', icon: Icon(Icons.vpn_key_outlined)),
+                  Tab(text: 'Usuários', icon: Icon(Icons.people_outline)),
+                ])
+              : null,
+        ),
+        body: authState.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Falha ao checar sessão: $e')),
+          data: (user) => autenticadoComoAdmin
+              ? const TabBarView(children: [_PainelCodigos(), _PainelUsuarios()])
+              : const _LoginAdmin(),
+        ),
       ),
     );
   }
@@ -282,6 +293,79 @@ class _PainelCodigos extends ConsumerWidget {
                 onPressed: () =>
                     ref.read(adminCodigosControllerProvider.notifier).revogar(codigo.codigo),
               ),
+      ),
+    );
+  }
+}
+
+/// Lista de quem já ganhou acesso ao app (resgatou um código com sucesso).
+/// NÃO é um histórico de login — o app não registra cada vez que alguém
+/// loga, só o momento único em que o e-mail passou pelo código de convite
+/// (ver `AcessoAutorizado`). Fonte: coleção `acessos_autorizados` do
+/// Firestore, a mesma usada pelo gate de login Google (ver DECISOES.md).
+class _PainelUsuarios extends ConsumerWidget {
+  const _PainelUsuarios();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final estado = ref.watch(adminUsuariosControllerProvider);
+
+    return Column(
+      children: [
+        if (estado.erro != null)
+          MaterialBanner(
+            content: Text(estado.erro!),
+            leading: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.error),
+            actions: [
+              TextButton(
+                onPressed: () => ref.read(adminUsuariosControllerProvider.notifier).limparErro(),
+                child: const Text('Fechar'),
+              ),
+            ],
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${estado.usuarios.length} ${estado.usuarios.length == 1 ? "pessoa com acesso" : "pessoas com acesso"}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Recarregar',
+                icon: const Icon(Icons.refresh),
+                onPressed: () => ref.read(adminUsuariosControllerProvider.notifier).recarregar(),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: estado.carregando
+              ? const Center(child: CircularProgressIndicator())
+              : estado.usuarios.isEmpty
+                  ? const Center(child: Text('Ninguém resgatou um código ainda.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: estado.usuarios.length,
+                      itemBuilder: (context, index) => _linhaUsuario(context, estado.usuarios[index]),
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _linhaUsuario(BuildContext context, AcessoAutorizado usuario) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: const Icon(Icons.person_outline),
+        title: Text(usuario.email),
+        subtitle: Text(
+          'Acesso concedido em ${_formatoData.format(usuario.autorizadoEm)} '
+          '· código ${usuario.codigoUsado}',
+        ),
       ),
     );
   }

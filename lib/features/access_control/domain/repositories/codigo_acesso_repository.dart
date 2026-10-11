@@ -1,6 +1,7 @@
 import 'package:fpdart/fpdart.dart' show Either, Unit;
 
 import '../../../../core/error/failures.dart';
+import '../entities/acesso_autorizado.dart';
 import '../entities/codigo_acesso.dart';
 
 /// Sem use cases separados aqui (diferente de outros módulos do projeto,
@@ -30,4 +31,10 @@ abstract class CodigoAcessoRepository {
 
   /// Admin: remove um código ainda não usado.
   Future<Either<Failure, Unit>> revogarCodigo(String codigo);
+
+  /// Admin: lista todo mundo que já ganhou acesso (resgatou um código com
+  /// sucesso, por Google ou e-mail/senha), mais recente primeiro. NÃO é um
+  /// histórico de login — é só o momento único em que cada e-mail ganhou
+  /// acesso (ver `AcessoAutorizado`).
+  Future<Either<Failure, List<AcessoAutorizado>>> listarUsuariosAutorizados();
 }
