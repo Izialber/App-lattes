@@ -1387,3 +1387,28 @@ mas refactor seguro e sem custo, então aplicado junto.
 **Nada disto foi testado ao vivo** — revisado e corrigido só como texto, sem SDK Flutter neste
 ambiente (mesma limitação de sempre). Precisa de deploy + teste real, principalmente o fluxo de
 login (Google e e-mail/senha, incluindo a página de admin isolada) antes de confiar no fix #1.
+
+## Tag XML de "Técnico" confirmada — palpite anterior estava errado (2026-10-10)
+
+Pendência em aberto desde a divisão técnico/graduação/pós lato/pós stricto (ver acima): a tag
+`'ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE'` usada pra reconhecer curso técnico no XML era um
+palpite explicitamente marcado como não confirmado. Resolvido sem precisar do usuário: achei
+`test/fixtures/curriculum-real-anonymized.xml`, um XML REAL (anonimizado) de exportação do
+Lattes, no projeto open-source `github.com/paladini/lattes-toolkit`. Baixei e confirmei byte a
+byte (não só pela leitura resumida) — a tag certa é `CURSO-TECNICO-PROFISSIONALIZANTE` (2
+ocorrências no fixture, um curso técnico do SENAI repetido). O palpite anterior
+(`ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE`) tem 0 ocorrências nesse XML real — não existe no
+schema, provavelmente nunca teria funcionado contra um XML de verdade.
+
+Mesmos atributos já lidos pelas outras tags (`NOME-CURSO`, `NOME-INSTITUICAO`, `ANO-DE-INICIO`,
+`ANO-DE-CONCLUSAO`, `STATUS-DO-CURSO`), confirmados no mesmo fixture — não precisou mudar nada
+além do nome da tag em `_tagsNivelFormacao`.
+
+Achado interessante, fora de escopo: existe uma tag SEPARADA `ENSINO-MEDIO-SEGUNDO-GRAU` pro
+ensino médio comum (não técnico) — sem atributo `NOME-CURSO` (faz sentido, não é um "curso" com
+nome). Não é o que o usuário pediu como "Técnico" (que ele mesmo descreveu como curso técnico/
+profissionalizante) — deixado de fora de propósito, documentado aqui caso o usuário peça
+"Ensino médio" como categoria separada no futuro.
+
+**Ainda não testado ao vivo com um XML real contendo curso técnico** — a confirmação é contra o
+schema (via o fixture de outro projeto), não contra uma importação de verdade nesta sessão.

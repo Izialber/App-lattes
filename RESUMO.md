@@ -1,3 +1,9 @@
+**Tag XML de "Técnico" confirmada contra um XML real de outro projeto open-source** — pendência
+em aberto desde a divisão técnico/graduação/pós (abaixo); o palpite anterior
+(`ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE`) não existe em nenhum XML real, confirmado contra um
+fixture anonimizado público (`paladini/lattes-toolkit`). Tag certa: `CURSO-TECNICO-PROFISSIONALIZANTE`.
+Ainda não testado ao vivo com uma importação de verdade.
+
 **Revisão de código proativa sobre tudo desde a última revisão completa (49 arquivos) — 8 de 10
 achados corrigidos**, feita enquanto o usuário estava longe do PC. Achado mais sério: a página de
 admin de códigos de convite usava a MESMA instância Firebase Auth que o app principal escuta

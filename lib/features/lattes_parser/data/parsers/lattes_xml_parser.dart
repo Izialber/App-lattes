@@ -115,15 +115,18 @@ class LattesXmlParser {
   // ---------------------------------------------------------------------
 
   static const Map<String, NivelCurso> _tagsNivelFormacao = {
-    // ATENÇÃO: 'ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE' é a melhor
-    // hipótese pra tag de curso técnico no schema do CNPq, mas NÃO foi
-    // confirmada contra um XML real ainda (diferente das outras tags desta
-    // lista, todas já confirmadas — ver DECISOES.md). Se um XML real tiver
-    // curso técnico e ele não aparecer em "Técnico" na tela, essa é a
-    // primeira coisa a conferir (nome real da tag, e se ela tem outro
-    // atributo além de NOME-CURSO/NOME-INSTITUICAO/ANO-DE-INICIO/
-    // ANO-DE-CONCLUSAO/STATUS-DO-CURSO usados abaixo).
-    'ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE': NivelCurso.tecnico,
+    // 'CURSO-TECNICO-PROFISSIONALIZANTE' — confirmada contra um XML real
+    // (anonimizado) de exportação do Lattes, fixture pública do projeto
+    // open-source github.com/paladini/lattes-toolkit
+    // (test/fixtures/curriculum-real-anonymized.xml). O palpite anterior,
+    // 'ENSINO-MEDIO-E-TECNICO-PROFISSIONALIZANTE', NÃO existe nesse XML real
+    // (0 ocorrências) — provavelmente nunca teria funcionado. Mesmos
+    // atributos das outras tags (NOME-CURSO/NOME-INSTITUICAO/ANO-DE-INICIO/
+    // ANO-DE-CONCLUSAO/STATUS-DO-CURSO), confirmados no mesmo XML. Existe
+    // também uma tag SEPARADA 'ENSINO-MEDIO-SEGUNDO-GRAU' pro ensino médio
+    // comum (sem NOME-CURSO, não é um "curso") — fora de escopo aqui, não é
+    // o que o usuário pediu como "Técnico".
+    'CURSO-TECNICO-PROFISSIONALIZANTE': NivelCurso.tecnico,
     'GRADUACAO': NivelCurso.graduacao,
     'ESPECIALIZACAO': NivelCurso.especializacao,
     'MESTRADO': NivelCurso.mestrado,
