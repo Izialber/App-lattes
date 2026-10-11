@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'llm_api_exception.dart';
+import 'llm_dio_factory.dart';
 import 'llm_json_utils.dart';
 
 /// Chamada HTTP direta à API da Groq (`api.groq.com/openai/v1/chat/
@@ -26,7 +27,7 @@ import 'llm_json_utils.dart';
 /// (console.groq.com/docs/rate-limits) — a Groq muda modelos/limites do
 /// free tier com frequência, então isto pode voltar a desatualizar.
 class GroqLlmDatasource {
-  GroqLlmDatasource([Dio? dio]) : _dio = dio ?? Dio();
+  GroqLlmDatasource([Dio? dio]) : _dio = dio ?? criarDioLlm();
 
   final Dio _dio;
 

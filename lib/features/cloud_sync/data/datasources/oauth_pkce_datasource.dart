@@ -142,7 +142,16 @@ class OauthPkceDatasource {
         'https://oauth2.googleapis.com/tokeninfo',
         queryParameters: {'id_token': idToken},
       );
-      return response.data?['email'] as String?;
+      final dados = response.data;
+      if (dados == null) return null;
+      // `email_verified` vem como STRING ("true"/"false") no tokeninfo do
+      // Google, não bool — achado em revisão de código: sem checar isto, um
+      // e-mail primário não verificado na conta Google ainda vira a
+      // identidade confiável pro gate de código de convite inteiro
+      // (acessos_autorizados, comparação com AdminConfig.email).
+      final verificado = dados['email_verified'] == 'true' || dados['email_verified'] == true;
+      if (!verificado) return null;
+      return dados['email'] as String?;
     } catch (_) {
       return null;
     }

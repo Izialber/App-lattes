@@ -1289,3 +1289,101 @@ console.groq.com/docs/deprecations antes de qualquer outra investigação.
 
 **Ainda não re-testado ao vivo** depois deste fix — próximo passo é confirmar que
 `openai/gpt-oss-20b` extrai os critérios do mesmo edital real sem erro.
+
+## Revisão de código (`/code-review high 14fe0e6^..HEAD`) — 8 de 10 achados corrigidos (2026-10-10)
+
+Rodada de revisão cobrindo tudo desde a última revisão completa (2026-09-18): bug de Formação
+complementar, divisão técnico/graduação/pós lato/pós stricto, códigos de convite + painel de
+admin, reconexão do Módulo 4 com Comprovantes, provedores Anthropic + Groq (incluindo os dois
+hotfixes da Groq). Feita proativamente enquanto o usuário estava longe do PC — 49 arquivos,
+~2275 linhas, nenhuma dessas mudanças tinha tido uma revisão completa ainda.
+
+**Corrigidos (8)**:
+
+1. **Sessão de admin contaminava a sessão geral do app.** `AdminCodigosPage` usava
+   `FirebaseAuth.instance` direto — a MESMA instância que `AuthController` escuta globalmente
+   (`authStateChanges().skip(1)`). Qualquer tentativa de login em `/admin/codigos` (até uma
+   errada, que dispara `signOut()` na hora) sobrescrevia/derrubava a sessão Google do app
+   principal, porque os dois escutam o mesmo stream. **Fix**: app Firebase SECUNDÁRIO isolado
+   (`FirebaseConfig.adminAppName = 'admin'`, inicializado em `main.dart` junto do app padrão),
+   usado em `AdminCodigosPage`/`firebaseAuthStateProvider`/`adminCodigoAcessoRepositoryProvider`
+   — mesmo projeto/config, só outro app-instance do SDK client-side, então Firestore/Auth
+   continuam enxergando o mesmo backend. `codigoAcessoRepositoryProvider` (resgate de código,
+   usado por todo mundo) continua no app padrão, sem autenticação — só as operações exclusivas
+   de admin (`listarCodigos`/`criarCodigo`/`revogarCodigo`) passaram pro app secundário.
+
+2. **Segunda escrita do resgate de código não era atômica com a transação.** `resgatarCodigo`
+   marcava `codigos/{x}.usado = true` numa transação e DEPOIS fazia um `.set()` separado em
+   `acessos_autorizados` — se essa segunda escrita falhasse (ex.: rede caiu nesse meio tempo), o
+   código ficava queimado sem o acesso ter sido registrado, sem jeito de tentar de novo (o
+   retry bateria em "código já usado"). **Fix parcial, de propósito**: NÃO uni as duas escritas
+   numa única transação — a regra de criação de `acessos_autorizados` faz `get()` no documento
+   de `codigos` exigindo `usado == true` já COMMITADO, e não há garantia (não verificável sem
+   SDK/emulador Firestore neste ambiente) de que esse `get()` dentro de uma regra enxergaria a
+   própria escrita ainda não commitada da mesma transação — unir as duas arriscava quebrar TODO
+   resgate de código sem eu conseguir testar antes do deploy. Em vez disso: retry com backoff
+   (3 tentativas, 500ms/1s/1.5s) na segunda escrita, que é idempotente. Cobre blips transitórios;
+   uma falha sustentada ainda deixa o usuário preso até intervenção manual do admin — limitação
+   residual aceita, documentada na mensagem de erro (`'...peça pro admin conferir o código "X"
+   manualmente.'`).
+
+3. **`confirmarEmailDoIdToken` não checava `email_verified`.** Um e-mail primário NÃO verificado
+   na conta Google ainda virava a identidade confiável pro gate de convite inteiro. **Fix**: só
+   retorna o e-mail se `email_verified` (string `"true"` no tokeninfo do Google, não bool) bater.
+
+4. **`emailAutorizado` sem resiliência a blip transitório.** Um erro de rede/Firestore passageiro
+   ao checar `acessos_autorizados` derrubava uma sessão Google JÁ válida pra tela de login (fail
+   silencioso, sem forçar reautenticação de verdade — só um susto). **Fix**: mesmo retry com
+   backoff do item 2, continua falhando FECHADO (nunca assume autorizado) depois de esgotar as
+   tentativas — não é fail-open, só absorve blips.
+
+5. **Tokens do Drive persistidos ANTES de confirmar o e-mail.** Se `confirmarEmailDoIdToken`
+   falhasse depois de `_persistirToken`, o usuário ficava num limbo "meio-logado": token válido
+   salvo, mas sem `googleEmail` — próxima carga cai silenciosamente em `AuthUnauthenticated` sem
+   nenhum erro, parecendo que o login nunca aconteceu. **Fix**: desfaz o token (`logout`) nesse
+   caminho de falha, pra sair sempre limpo (totalmente logado ou totalmente deslogado).
+
+6. **Comprovante órfão mostrava categoria desatualizada como se fosse fato.** A divisão de
+   Formação acadêmica em técnico/graduação/pós lato/pós stricto (ver acima) reclassificou o enum
+   sem reclassificar comprovantes antigos — um anexo de Doutorado órfão de ANTES dessa migração
+   mostraria "Graduação" (rótulo atual do valor antigo `curso`) como se fosse a categoria real.
+   **Fix**: subtítulo do órfão agora explicita "Categoria (pode estar desatualizada): X" — não
+   some a informação, só deixa claro que não é confiável. Vale pra qualquer reclassificação
+   futura, não só esta.
+
+7. **`app_router.dart` exigia tocar em dois lugares pra uma rota com gate próprio.** A exceção de
+   `/admin/codigos` ao redirect geral estava duplicada: uma vez em `_rotaPublica`, outra vez
+   hardcoded dentro do branch de `AuthPendenteCodigo` — já tinha causado um bug ao vivo
+   (corrigido um dos dois, esquecido o outro, commit `8679a17`). **Fix**: unificado num único
+   predicado `_rotaComGateProprio`, usado nos dois lugares — uma rota auto-gerenciada nova só
+   precisa entrar numa lista, não duas.
+
+8. **`Dio()` sem timeout nas 4 datasources de LLM** (não só Anthropic/Groq, achado estendido
+   também pro Gemini/OpenAI já existentes — mesmo padrão, mesmo gap). Uma chamada travada
+   (provedor lento, rate limit silencioso) ficava pendurada pra sempre, sem jeito de cancelar,
+   spinner preso na UI indefinidamente. **Fix**: `llm_dio_factory.dart` novo, `criarDioLlm()`
+   compartilhado (20s connect / 90s receive / 30s send — generoso de propósito, edital longo
+   pode legitimamente levar dezenas de segundos), usado pelas 4 datasources.
+
+**Também corrigido, de graça**: `dossie_checklist_page.dart` fazia 3 scans lineares
+(`.where(...).firstOrNull`) por comprovante a cada rebuild da tela de checklist — trocado por 3
+mapas montados uma vez (`_tilesDeComprovantes`). Baixa severidade (N pequeno, currículo pessoal),
+mas refactor seguro e sem custo, então aplicado junto.
+
+**Não corrigidos (2), aceitos como estão**:
+
+- **Modelos de LLM hardcoded sem fallback/config remota** (Anthropic e Groq, mesmo padrão nos
+  dois) — já causou 2 incidentes reais só na Groq (limite de TPM, depois descontinuação de
+  modelo), cada um resolvido trocando a string literal. Não construí nenhuma infra de
+  remote-config pra isso — seria overengineering pra um app pessoal BYOK; o padrão aceito
+  continua sendo "acontecer de novo, trocar a string, redeploy", documentado explicitamente
+  como risco conhecido em vez de resolvido.
+- **Nenhum teste novo escrito** pros fixes de 1-5 acima (`codigo_acesso_repository_impl.dart`,
+  `oauth_pkce_datasource.dart`, `auth_repository_impl.dart`) — mockar `cloud_firestore`
+  corretamente é não-trivial, e sem SDK Flutter neste ambiente pra rodar `flutter test`, não
+  havia como verificar se um teste novo sequer compilava. Risco maior que benefício escrever
+  teste não-verificável; revisão ficou só como leitura cuidadosa do diff.
+
+**Nada disto foi testado ao vivo** — revisado e corrigido só como texto, sem SDK Flutter neste
+ambiente (mesma limitação de sempre). Precisa de deploy + teste real, principalmente o fluxo de
+login (Google e e-mail/senha, incluindo a página de admin isolada) antes de confiar no fix #1.

@@ -23,6 +23,17 @@ class FirebaseConfig {
 
   static bool get isConfigured => apiKey.isNotEmpty;
 
+  /// Nome do app Firebase SECUNDÁRIO, usado só pela sessão de admin
+  /// (`/admin/codigos`) — isolado de propósito do app padrão (usado pelo
+  /// login por e-mail/senha do resto do app). Achado numa revisão de
+  /// código: sem isso, `FirebaseAuth.instance` é compartilhado entre a
+  /// página de admin e o `AuthController` global, e um login (até um
+  /// errado) na página de admin sobrescreve/derruba a sessão do app
+  /// principal, porque os dois escutam o mesmo `authStateChanges()`. Mesmo
+  /// projeto/config (`options` abaixo) — só o app-instance do SDK client-side
+  /// é outro, Firestore/Firebase Auth continuam enxergando o mesmo projeto.
+  static const String adminAppName = 'admin';
+
   static FirebaseOptions get options => const FirebaseOptions(
         apiKey: apiKey,
         authDomain: authDomain,

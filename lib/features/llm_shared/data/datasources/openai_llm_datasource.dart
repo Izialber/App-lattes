@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'llm_api_exception.dart';
+import 'llm_dio_factory.dart';
 import 'llm_json_utils.dart';
 
 /// Chamada HTTP direta à API da OpenAI (`api.openai.com/v1/chat/completions`,
@@ -16,7 +17,7 @@ import 'llm_json_utils.dart';
 /// OAuth antes da correção de CSP — o console do navegador é o primeiro
 /// lugar a checar.
 class OpenAiLlmDatasource {
-  OpenAiLlmDatasource([Dio? dio]) : _dio = dio ?? Dio();
+  OpenAiLlmDatasource([Dio? dio]) : _dio = dio ?? criarDioLlm();
 
   final Dio _dio;
 

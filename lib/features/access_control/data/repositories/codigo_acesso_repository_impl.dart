@@ -76,13 +76,45 @@ class CodigoAcessoRepositoryImpl implements CodigoAcessoRepository {
       // Só funcionalmente necessário pro fluxo Google (lembrar que este
       // e-mail já passou pelo código, ver `emailAutorizado`) — inofensivo
       // gravar também no fluxo e-mail/senha, que simplesmente não lê isto.
-      await _db.collection(_colecaoAcessos).doc(identificadorNormalizado).set({
-        'email': identificadorNormalizado,
-        'autorizadoEm': FieldValue.serverTimestamp(),
-        'codigoUsado': codigoNormalizado,
-      });
-
-      return const Right(unit);
+      //
+      // NÃO está na mesma transação acima de propósito: a regra de criação
+      // de `acessos_autorizados` (`firestore.rules`) faz `get()` no
+      // documento de `codigos` exigindo `usado == true` já COMMITADO — se
+      // essa escrita entrasse na mesma transação que acabou de marcar
+      // `usado: true`, não há garantia de que esse `get()` dentro da regra
+      // enxergaria a própria escrita ainda não commitada da transação
+      // (comportamento de `get()` em regras dentro de transação não é
+      // verificável sem SDK/emulador neste ambiente — por segurança,
+      // mantido como uma segunda escrita separada, só com retry).
+      //
+      // Risco real, achado em revisão de código: se esta segunda escrita
+      // falhar (ex.: rede caiu bem nesse meio tempo), a transação acima já
+      // commitou — o código fica queimado sem o acesso ter sido de fato
+      // registrado. Retry com backoff cobre falhas transitórias (o `.set()`
+      // é idempotente, seguro repetir); uma falha sustentada ainda deixa o
+      // usuário preso até intervenção manual do admin — limitação residual
+      // aceita, mesmo espírito do limite de TPM da Groq (ver DECISOES.md).
+      Object? ultimoErro;
+      for (var tentativa = 0; tentativa < 3; tentativa++) {
+        try {
+          await _db.collection(_colecaoAcessos).doc(identificadorNormalizado).set({
+            'email': identificadorNormalizado,
+            'autorizadoEm': FieldValue.serverTimestamp(),
+            'codigoUsado': codigoNormalizado,
+          });
+          return const Right(unit);
+        } catch (e) {
+          ultimoErro = e;
+          if (tentativa < 2) {
+            await Future<void>.delayed(Duration(milliseconds: 500 * (tentativa + 1)));
+          }
+        }
+      }
+      return Left(AccessCodeFailure(
+        'Código resgatado, mas falha ao registrar o acesso ($ultimoErro). '
+        'Tente entrar de novo — se continuar falhando, peça pro admin conferir '
+        'o código "$codigoNormalizado" manualmente.',
+      ));
     } on AccessCodeFailure catch (e) {
       return Left(e);
     } catch (e) {
@@ -92,12 +124,26 @@ class CodigoAcessoRepositoryImpl implements CodigoAcessoRepository {
 
   @override
   Future<Either<Failure, bool>> emailAutorizado(String email) async {
-    try {
-      final doc = await _db.collection(_colecaoAcessos).doc(email.trim().toLowerCase()).get();
-      return Right(doc.exists);
-    } catch (e) {
-      return Left(AccessCodeFailure('Falha ao checar autorização: $e'));
+    final ref = _db.collection(_colecaoAcessos).doc(email.trim().toLowerCase());
+    // Retry curto: achado em revisão de código — sem isto, um blip
+    // transitório de rede/Firestore aqui derruba uma sessão Google já
+    // válida pra tela de login (`AuthController._resolverEstadoGoogle` usa
+    // isto pra decidir `AuthAuthenticated` vs. `AuthUnauthenticated`).
+    // Continua falhando fechado (nunca assume autorizado) depois de
+    // esgotar as tentativas — não é um fail-open, só absorve blips.
+    Object? ultimoErro;
+    for (var tentativa = 0; tentativa < 3; tentativa++) {
+      try {
+        final doc = await ref.get();
+        return Right(doc.exists);
+      } catch (e) {
+        ultimoErro = e;
+        if (tentativa < 2) {
+          await Future<void>.delayed(Duration(milliseconds: 500 * (tentativa + 1)));
+        }
+      }
     }
+    return Left(AccessCodeFailure('Falha ao checar autorização: $ultimoErro'));
   }
 
   @override

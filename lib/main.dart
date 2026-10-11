@@ -35,6 +35,9 @@ Future<void> main() async {
   // Não tenta inicializar com config vazia (falharia em runtime).
   if (FirebaseConfig.isConfigured) {
     await Firebase.initializeApp(options: FirebaseConfig.options);
+    // App secundário, isolado, só pra sessão de admin — ver
+    // `FirebaseConfig.adminAppName`.
+    await Firebase.initializeApp(name: FirebaseConfig.adminAppName, options: FirebaseConfig.options);
   }
 
   await bootstrap();

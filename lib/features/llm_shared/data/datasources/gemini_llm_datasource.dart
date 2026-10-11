@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'llm_api_exception.dart';
+import 'llm_dio_factory.dart';
 import 'llm_json_utils.dart';
 
 /// Chamada HTTP direta à API do Gemini (`generativelanguage.googleapis.com`)
@@ -11,7 +12,7 @@ import 'llm_json_utils.dart';
 /// "CORS nas chamadas ao LLM"); caso isso mude, o ponto de troca é este
 /// datasource, sem impacto em `domain`.
 class GeminiLlmDatasource {
-  GeminiLlmDatasource([Dio? dio]) : _dio = dio ?? Dio();
+  GeminiLlmDatasource([Dio? dio]) : _dio = dio ?? criarDioLlm();
 
   final Dio _dio;
 

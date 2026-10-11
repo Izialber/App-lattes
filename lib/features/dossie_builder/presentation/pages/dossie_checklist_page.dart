@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -145,26 +144,37 @@ class _DossieChecklistPageState extends ConsumerState<DossieChecklistPage> {
             ),
           )
         else
-          for (final comprovante in estado.comprovantesSincronizados)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _ComprovanteVinculoTile(
-                comprovante: comprovante,
-                entrada: estado.entradas
-                    .where((e) => e.id == comprovante.entradaId)
-                    .firstOrNull,
-                edital: edital,
-                sugestao: estado.sugestoes
-                    .where((s) => s.comprovanteId == comprovante.id)
-                    .firstOrNull,
-                decisaoAtual: estado.dossie?.vinculosRevisados
-                    .where((v) => v.comprovanteId == comprovante.id)
-                    .firstOrNull,
-              ),
-            ),
+          ..._tilesDeComprovantes(estado, edital),
         const SizedBox(height: 80), // espaço para o FAB não cobrir o último item
       ],
     );
+  }
+
+  /// Mapas montados uma vez por rebuild em vez de 3 scans lineares
+  /// (`.where(...).firstOrNull`) repetidos PRA CADA comprovante no loop de
+  /// `_corpo` — achado em revisão de código (O(N×M) recomputado em todo
+  /// rebuild da página, ex.: a cada toggle de decisão).
+  List<Widget> _tilesDeComprovantes(DossieBuilderState estado, Edital edital) {
+    final entradasPorId = {for (final e in estado.entradas) e.id: e};
+    final sugestoesPorComprovanteId = {for (final s in estado.sugestoes) s.comprovanteId: s};
+    final vinculosPorComprovanteId = {
+      for (final v in estado.dossie?.vinculosRevisados ?? const <VinculoAprovado>[])
+        v.comprovanteId: v,
+    };
+
+    return [
+      for (final comprovante in estado.comprovantesSincronizados)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _ComprovanteVinculoTile(
+            comprovante: comprovante,
+            entrada: entradasPorId[comprovante.entradaId],
+            edital: edital,
+            sugestao: sugestoesPorComprovanteId[comprovante.id],
+            decisaoAtual: vinculosPorComprovanteId[comprovante.id],
+          ),
+        ),
+    ];
   }
 
   Future<void> _abrirDialogoNovoCriterio(BuildContext context, WidgetRef ref) async {

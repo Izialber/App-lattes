@@ -1,13 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/config/admin_config.dart';
+import '../../../../core/config/firebase_config.dart';
 import '../../../../core/routing/app_router.dart';
 import '../../../../core/routing/voltar_app_bar_button.dart';
 import '../../domain/entities/codigo_acesso.dart';
 import '../providers/codigo_acesso_providers.dart';
+
+/// App Firebase SECUNDÁRIO, isolado do app padrão — ver
+/// `FirebaseConfig.adminAppName`. Usado pra login/logout aqui não vazar pro
+/// `AuthController` global, que escuta `FirebaseAuth.instance` (app padrão).
+FirebaseAuth get _authAdmin => FirebaseAuth.instanceFor(app: Firebase.app(FirebaseConfig.adminAppName));
 
 final _formatoData = DateFormat('dd/MM/yyyy HH:mm');
 
@@ -67,7 +74,7 @@ class _LoginAdminState extends ConsumerState<_LoginAdmin> {
     });
 
     try {
-      final credencial = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final credencial = await _authAdmin.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _senhaController.text,
       );
@@ -75,7 +82,7 @@ class _LoginAdminState extends ConsumerState<_LoginAdmin> {
       // qualquer conta Firebase válida consegue LOGAR aqui, mas só a do
       // admin deve ver o painel — sai de novo na hora se não bater.
       if (credencial.user?.email?.toLowerCase() != AdminConfig.email) {
-        await FirebaseAuth.instance.signOut();
+        await _authAdmin.signOut();
         if (!mounted) return;
         setState(() {
           _enviando = false;

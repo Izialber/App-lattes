@@ -1,6 +1,8 @@
 /// Quem tem acesso à página de administração de códigos de convite
-/// (`/admin/codigos`). Checado contra `FirebaseAuth.instance.currentUser?.
-/// email` — só login via Firebase Auth dá ao Firestore uma identidade
+/// (`/admin/codigos`). Checado contra o e-mail da sessão Firebase Auth do
+/// app SECUNDÁRIO isolado de admin (`firebaseAuthStateProvider`, ver
+/// `FirebaseConfig.adminAppName`) — só login via Firebase Auth dá ao
+/// Firestore uma identidade
 /// verificável (`request.auth.token.email`) pras regras de segurança
 /// confiarem; o login "Continuar com Google" do resto do app é um fluxo
 /// OAuth PKCE separado, sem essa garantia (ver DECISOES.md, "Códigos de

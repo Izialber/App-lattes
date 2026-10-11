@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import 'llm_api_exception.dart';
+import 'llm_dio_factory.dart';
 import 'llm_json_utils.dart';
 
 /// Chamada HTTP direta à API da Anthropic (`api.anthropic.com/v1/messages`,
@@ -16,7 +17,7 @@ import 'llm_json_utils.dart';
 /// nativamente (`type: 'document'`) — sem a limitação que
 /// `OpenAiLlmDatasource` tem.
 class AnthropicLlmDatasource {
-  AnthropicLlmDatasource([Dio? dio]) : _dio = dio ?? Dio();
+  AnthropicLlmDatasource([Dio? dio]) : _dio = dio ?? criarDioLlm();
 
   final Dio _dio;
 

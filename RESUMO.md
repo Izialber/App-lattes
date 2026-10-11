@@ -1,3 +1,16 @@
+**Revisão de código proativa sobre tudo desde a última revisão completa (49 arquivos) — 8 de 10
+achados corrigidos**, feita enquanto o usuário estava longe do PC. Achado mais sério: a página de
+admin de códigos de convite usava a MESMA instância Firebase Auth que o app principal escuta
+globalmente — um login (até errado) em `/admin/codigos` podia derrubar a sessão Google de
+qualquer usuário. Isolado num app Firebase secundário. Outros fixes: retry em duas operações de
+Firestore que podiam deixar o usuário "preso" num blip transitório de rede, checagem de
+`email_verified` que faltava na identidade Google do gate de convite, limbo de "token salvo sem
+e-mail confirmado" no login Google, timeout ausente nas 4 chamadas de LLM, duplicação de uma
+checagem de rota que já tinha causado um bug ao vivo antes. Não corrigidos (aceitos): modelos de
+LLM continuam hardcoded sem config remota (overengineering pra este projeto), e nenhum teste novo
+foi escrito pros fixes de Firestore/OAuth (não dava pra verificar se compilava sem SDK Flutter
+aqui). Nada testado ao vivo ainda — ver DECISOES.md pra lista completa.
+
 **Groq: segundo bug ao vivo, modelo de texto descontinuado** — depois do fix de limite de
 tokens (abaixo), reteste real bateu em erro novo: `llama-3.1-8b-instant` não existe mais pro
 free/developer tier (a Groq descontinuou em 2026-08-16). Trocado pro substituto oficial,

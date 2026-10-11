@@ -298,7 +298,16 @@ class _ComprovantesLattesPageState extends ConsumerState<ComprovantesLattesPage>
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.help_outline),
                 title: Text(comprovante.nomeArquivo),
-                subtitle: Text(comprovante.categoria.rotulo),
+                // Categoria gravada no momento do anexo — pra um órfão,
+                // "desatualizada" é a palavra certa, não só "possivelmente
+                // errada": achado em revisão de código, a divisão de
+                // Formação acadêmica em técnico/graduação/pós lato/pós
+                // stricto (ver DECISOES.md) já reclassificou o enum sem
+                // reclassificar comprovantes antigos — um anexo de
+                // Doutorado órfão de antes dessa migração mostraria
+                // "Graduação" como se fosse fato. Qualificador deixa claro
+                // que não é confiável, sem apagar a informação.
+                subtitle: Text('Categoria (pode estar desatualizada): ${comprovante.categoria.rotulo}'),
                 trailing: IconButton(
                   tooltip: 'Remover comprovante',
                   icon: const Icon(Icons.delete_outline),

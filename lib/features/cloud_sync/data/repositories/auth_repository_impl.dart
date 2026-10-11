@@ -95,6 +95,14 @@ class AuthRepositoryImpl implements AuthRepository {
       final idToken = data['id_token'] as String?;
       final email = idToken == null ? null : await _pkceDatasource.confirmarEmailDoIdToken(idToken);
       if (email == null) {
+        // Acima já persistiu o token do Drive — sem desfazer isso aqui, o
+        // usuário fica num limbo "meio-logado": `obterTokenValido` acharia
+        // um token válido na próxima carga, mas sem `googleEmail` salvo,
+        // `_resolverEstadoGoogle` cai silenciosamente em `AuthUnauthenticated`
+        // sem nenhum erro — parece que o login nunca aconteceu. Achado em
+        // revisão de código: desfaz o token pra sair limpo (totalmente
+        // deslogado), nunca em estado intermediário.
+        await logout(CloudProvider.googleDrive);
         return const Left(AuthFailure(
           'Não foi possível confirmar seu e-mail do Google — tente novamente.',
           requiresReauth: true,
