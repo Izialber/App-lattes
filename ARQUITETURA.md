@@ -13,8 +13,13 @@ para sustentar essa transição.
    `dart:html`, `package:web`, `camera`, ou qualquer API específica de navegador ou SO.
 3. **Tudo que é específico de plataforma vive atrás de uma interface em `core/platform`.** A troca
    Web → Nativo na fase 2 é troca de implementação (uma classe nova), nunca reescrita de use case.
-4. **Sem backend próprio.** O "backend" de arquivos é o Google Drive/OneDrive do usuário; o
-   "backend" de inteligência é a API de LLM chamada diretamente do cliente (BYOK, ver RISCOS.md).
+4. **Sem backend próprio PARA DADOS DO USUÁRIO.** O "backend" de arquivos é o Google Drive/
+   OneDrive do usuário; o "backend" de inteligência é a API de LLM chamada diretamente do
+   cliente (BYOK, ver RISCOS.md). Exceção pontual, deliberada: o Firestore do projeto Firebase
+   (mesmo projeto do login por e-mail/senha) é usado como backend compartilhado SÓ pro controle
+   de acesso (códigos de convite de uso único + painel de admin, `features/access_control/`) —
+   nenhum arquivo/dado acadêmico do usuário passa por ele, só metadados de quem tem permissão
+   de criar conta (ver DECISOES.md, "Códigos de convite").
 5. **Multiusuário desde a concepção, sem storage compartilhado.** Qualquer pessoa loga com a
    própria conta Google/Microsoft (ver `AuthRepository`); cada sessão de navegador autentica e
    opera isoladamente sobre a nuvem da própria pessoa. Não existe conceito de "usuário dono do
@@ -47,10 +52,15 @@ lib/
     utils/                -> constantes, breakpoints responsivos
   features/
     lattes_parser/        -> Módulo 1
-    certificate_capture/  -> Módulo 2
-    cloud_sync/           -> Módulo 3
+    comprovantes/          -> Módulo 2 (substituiu certificate_capture — ver nota abaixo)
+    cloud_sync/            -> Módulo 3 (login + sincronização com a nuvem)
     dossie_builder/        -> Módulo 4
-    llm_shared/            -> cliente LLM compartilhado (BYOK) entre módulos 2 e 4
+    llm_shared/            -> cliente LLM compartilhado (BYOK) entre o Módulo 4 e certificate_capture
+    certificate_capture/   -> módulo ORIGINAL de captura+extração por LLM, mantido no repo mas
+                              desconectado da navegação desde o redesenho do Módulo 2 (ver nota)
+    access_control/        -> transversal, não numerado: códigos de convite + painel de admin
+                              (gate de criação de conta, único módulo com backend compartilhado —
+                              Firestore; ver princípio 4 acima e DECISOES.md)
 web/
   index.html, manifest.json, sw.js
 test/
@@ -59,7 +69,11 @@ test/
 
 ## 4. Fluxo de dados dos 4 módulos
 
-### 4.1 Parser Lattes (100% local, sem IA) — único módulo funcional de ponta a ponta
+Os 4 estão conectados de ponta a ponta e alcançáveis pela navegação principal (atualizado — na
+entrega original só o Módulo 1 estava assim; os módulos 2-4 foram conectados em sessões
+posteriores, incluindo um redesenho do Módulo 2, ver DECISOES.md).
+
+### 4.1 Parser Lattes (100% local, sem IA)
 
 ```
 Usuário toca "Selecionar XML do Lattes" (LattesImportPage)
@@ -73,34 +87,45 @@ Usuário toca "Selecionar XML do Lattes" (LattesImportPage)
   -> Resposta do usuário -> ConfirmarVinculoAtual (use case) -> novo CurriculoLattes no estado
 ```
 
-Este é o único fluxo com TODAS as camadas implementadas (não apenas domínio + stub) nesta
-entrega — os módulos 2 a 4 abaixo continuam com `data/` em stub documentado.
+### 4.2 Comprovantes (`features/comprovantes/` — substituiu `certificate_capture`)
 
-### 4.2 Captura de certificados
-
-```
-[Mobile: getUserMedia + guia de enquadramento]   [Desktop: file_picker multi-select / drag&drop]
-  -> CameraCaptureDatasource / UploadDropzoneDatasource
-  -> HeicConverter (se necessário) roda em TaskRunner (chunked no web / Isolate nativo)
-  -> ImageCompressor (package:image) reduz resolução antes do envio ao LLM
-  -> ExtrairDadosCertificadoLlm (use case) chama LlmRepository (BYOK)
-  -> LLM retorna JSON: {titulo, instituicao, cargaHoraria, data, vinculoSugerido}
-  -> CertificadoCapturado (entidade) criado com status = pendenteRevisao
-  -> Estado persistido via UploadQueueLocalStore (Hive/IndexedDB) para sobreviver a reload
-```
-
-### 4.3 Sincronização Cloud
+Redesenho em relação à entrega original: em vez de capturar uma foto solta e extrair
+título/instituição por LLM, o usuário anexa um arquivo (foto/PDF) DIRETO em cima de uma entrada
+já existente do currículo Lattes (`EntradaLattesRef`, recalculada de `CurriculoLattes` via
+`gerarEntradasLattes` — nunca persistida por si só). Sem extração por LLM neste módulo —
+título/instituição vêm do próprio XML, mais confiável que uma extração livre.
 
 ```
-CertificadoCapturado aprovado (ou aguardando) na fila
-  -> Converter imagem em PDF (TaskRunner: pdf + image, chunked/isolate)
-  -> Renomear em padrão determinístico: {AAAA-MM-DD}_{categoria}_{hashCurto}.pdf
-  -> EnviarPdfParaCloud (use case) -> CloudStorageRepository (Google Drive API ou MS Graph)
-  -> Upload resumível (sessão de upload da própria API); falha de rede -> volta para fila
+CurriculoListView ("Anexar comprovantes") -> ComprovantesLattesPage
+  -> lista EntradaLattesRef agrupadas por CategoriaEntradaLattes (técnico, graduação, pós lato/
+     stricto sensu, formação complementar, experiência profissional, publicação, orientação,
+     produção técnica, participação em evento, projeto de pesquisa, idioma)
+  -> usuário anexa 1+ arquivos numa entrada -> ComprovanteUploadDatasourceWeb (file_picker)
+  -> HeicConverter (se necessário) roda em TaskRunner
+  -> ComprovanteEntrada (entidade) criado com entradaId + status = pendenteSincronizacao
+  -> persistido via ComprovanteLocalStore (Hive/IndexedDB)
+```
+
+`certificate_capture/` (módulo original, câmera + extração por LLM) continua no repo intocado,
+só desconectado da navegação — `llm_shared/` ainda é usado por ele.
+
+### 4.3 Sincronização Cloud (`features/cloud_sync/`)
+
+```
+ComprovanteEntrada pendente (ver 4.2)
+  -> ComprovantesSyncController (comprovantes_sync_providers.dart, em cloud_sync/)
+  -> AtualizarStatusSincronizacaoComprovante (use case) marca sincronizando
+  -> Renomear em padrão determinístico: {AAAA-MM-DD}_{categoria}_{hashCurto}.{ext}
+  -> CloudStorageRepository (Google Drive API; subpasta por categoria, cacheada)
+  -> Upload resumível (sessão de upload da própria API); falha de rede -> volta pra fila
      offline-first com retry exponencial (package:retry)
   -> AuthRepository garante token válido (renovação automática de refresh token antes de cada
      chamada; token nunca é lido diretamente pelos use cases, só via interceptor do Dio)
 ```
+
+Login (Google OAuth PKCE ou e-mail/senha via Firebase Auth) também vive em `cloud_sync/` — ver
+`AuthController`/`AuthRepository`. Criação de conta por qualquer um dos dois caminhos exige um
+código de convite de uso único (`features/access_control/`, ver princípio 4 e DECISOES.md).
 
 ### 4.4 Montador de Dossiê (human-in-the-loop obrigatório)
 
@@ -108,8 +133,10 @@ CertificadoCapturado aprovado (ou aguardando) na fila
 Usuário fornece PDF do edital
   -> ExtrairCriteriosEdital (use case) -> LlmRepository interpreta critérios de pontuação
      da Prova de Títulos -> List<CriterioPontuacao>
-  -> SugerirVinculos (use case) cruza critérios com CertificadosCapturados já sincronizados
-     -> List<VinculoSugerido> (nunca aprovado automaticamente)
+  -> SugerirVinculos (use case) cruza critérios com ComprovanteEntrada já sincronizados (texto
+     de match vem de EntradaLattesRef.titulo/subtitulo ligada por entradaId, recalculada do
+     currículo — não mais de extração por LLM, ver 4.2) -> List<VinculoSugerido> (nunca
+     aprovado automaticamente)
   -> DossieChecklistPage: usuário aprova / altera / exclui cada vínculo
      -> estado DossieEmMontagem persistido a cada interação (retomável pós-reload)
   -> Usuário confirma -> CompilarDossie (use case) -> DecidirEstrategiaDeMemoria escolhe entre:
@@ -130,18 +157,18 @@ flowchart TD
         A2 --> A3[CurriculoLattes]
     end
 
-    subgraph M2["Módulo 2: Captura de Certificados"]
-        B1[Câmera web / Upload multi-select] --> B2[HeicConverter + Compressor]
-        B2 --> B3[LlmRepository: extração]
-        B3 --> B4[CertificadoCapturado pendenteRevisao]
+    subgraph M2["Módulo 2: Comprovantes"]
+        B1[Entrada do currículo] --> B2[Anexar arquivo: file_picker]
+        B2 --> B2b[HeicConverter se necessário]
+        B2b --> B4[ComprovanteEntrada pendenteSincronizacao]
     end
 
     subgraph M3["Módulo 3: Sincronização Cloud"]
-        C1[Imagem -> PDF] --> C2[Fila offline-first]
+        C1[Renomear em padrão determinístico] --> C2[Fila offline-first]
         C2 --> C3{Token válido?}
         C3 -- não --> C4[Renovar refresh token]
         C4 --> C3
-        C3 -- sim --> C5[Upload resumível Drive/Graph]
+        C3 -- sim --> C5[Upload resumível Google Drive]
     end
 
     subgraph M4["Módulo 4: Montador de Dossiê"]
@@ -154,9 +181,15 @@ flowchart TD
         D5 -- nem o maior cabe --> D7[Degradação explícita: concluir no desktop]
     end
 
+    subgraph AC["access_control (transversal, gate de conta)"]
+        AC1[Código de convite] --> AC2[Firestore: codigos / acessos_autorizados]
+    end
+
     A3 --> D3
+    A3 -. gera EntradaLattesRef .-> B1
     B4 --> C1
     C5 --> D3
+    AC2 -. libera criação de conta, antes do login .-> B1
 
     subgraph CORE["core/platform (abstrações)"]
         T[TaskRunner]
@@ -164,10 +197,9 @@ flowchart TD
         SEC[SecureStorageService]
     end
 
-    B2 -. usa .-> T
+    B2b -. usa .-> T
     C1 -. usa .-> T
     D6 -. usa .-> T
-    B1 -. usa .-> CAM
     C4 -. usa .-> SEC
 ```
 
@@ -182,7 +214,7 @@ e comentário explicando o que vai entrar ali). A seleção de implementação a
 | Abstração | Interface | Implementação Web (fase 1) | O que muda na fase 2 (nativo) |
 |---|---|---|---|
 | `TaskRunner` | roda função pesada fora da UI thread; expõe `estimatedSafeHeapBytes` (350MB fixo no iOS, dinâmico via `navigator.deviceMemory` no Android, fixo no desktop) | Processamento em chunks com `Future.delayed(Duration.zero)`/`Timer` para ceder o event loop (dart:isolate não existe no Web); tarefas realmente pesadas (merge de PDF grande) usam Web Worker via `package:web` + `dart:js_interop` | `dart:isolate` (`Isolate.run`); teto de memória lido do dispositivo real (ex. `device_info_plus`) em vez de `navigator.deviceMemory` |
-| `CameraService` | captura de foto ao vivo | `getUserMedia` + `<video>`/`<canvas>` via `package:web` | plugin `camera` nativo (Isolate para pós-processamento) |
+| `CameraService` | captura de foto ao vivo | `getUserMedia` + `<video>`/`<canvas>` via `package:web` — hoje só exercida pelo módulo legado `certificate_capture/`, desconectado da navegação (ver seção 4.2); o Módulo 2 atual (`comprovantes/`) usa `file_picker`, não câmera | plugin `camera` nativo (Isolate para pós-processamento) |
 | `SecureStorageService` | guarda tokens OAuth e chave LLM | Web Crypto API (AES-GCM), chave não exportável em IndexedDB | `flutter_secure_storage` (Keychain/Keystore) |
 | `HeicConverter` | HEIC -> JPEG | `<img>`/`<canvas>` (Safari decodifica HEIC nativamente); fallback pede export manual | `heic_to_jpg` (biblioteca nativa) |
 | `ConnectivityGate` | detecta perda/retorno de rede | `connectivity_plus` + erro de rede do Dio como sinal redundante | `connectivity_plus` nativo (eventos mais granulares) |
