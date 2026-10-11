@@ -21,18 +21,22 @@ import 'llm_json_utils.dart';
 ///
 /// Dois modelos diferentes, não um só: achado ao vivo — usar o modelo de
 /// visão também pra texto puro (ex.: interpretar um edital inteiro) estoura
-/// o limite de tokens por minuto do plano gratuito da Groq, que é BEM mais
-/// apertado pro modelo de visão (7000 TPM) do que pros modelos de texto
-/// (`llama-3.1-8b-instant`, 6000 TPM mas sem o overhead de processar
-/// imagem — na prática aguenta textos mais longos antes de estourar, e tem
-/// RPM/RPD maiores). Visão só entra quando há de fato uma imagem anexada.
+/// o limite de tokens por minuto do plano gratuito da Groq. Visão só entra
+/// quando há de fato uma imagem anexada. Ambos em 8K TPM no free tier hoje
+/// (console.groq.com/docs/rate-limits) — a Groq muda modelos/limites do
+/// free tier com frequência, então isto pode voltar a desatualizar.
 class GroqLlmDatasource {
   GroqLlmDatasource([Dio? dio]) : _dio = dio ?? Dio();
 
   final Dio _dio;
 
   static const _endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  static const _modeloTexto = 'llama-3.1-8b-instant';
+  // `llama-3.1-8b-instant` foi descontinuado pra free/developer tier em
+  // 2026-08-16 (achado ao vivo: API passou a responder "model does not
+  // exist") — substituto oficial da Groq é `openai/gpt-oss-20b` (ver
+  // console.groq.com/docs/deprecations). TPM do free tier passou a 8K
+  // (era 6K no llama-3.1-8b-instant).
+  static const _modeloTexto = 'openai/gpt-oss-20b';
   static const _modeloVisao = 'qwen/qwen3.8-27b';
 
   Future<Map<String, dynamic>> gerarJson({

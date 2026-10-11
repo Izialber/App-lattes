@@ -1269,3 +1269,23 @@ relatado pediu 35830 tokens, quase 6x o teto). Não há como contornar isso sem 
 edital (arriscado, perderia conteúdo) ou mudar de provedor pra documentos grandes — por ora, a
 mensagem de erro clara já orienta o usuário a trocar de provedor quando isso acontecer, aceito
 como limitação inerente ao "gratuito" que o próprio usuário pediu.
+
+## Bug achado ao vivo: Groq descontinuou `llama-3.1-8b-instant` no free tier (2026-10-10)
+
+Reteste do fix acima: erro mudou de "tokens per minute" pra `"The model 'llama-3.1-8b-instant'
+does not exist or you do not have access to it."` — a Groq desativou esse modelo pro
+free/developer tier em 2026-08-16 (anunciado 2026-06-17, confirmado em
+console.groq.com/docs/deprecations), não é mais questão de cota.
+
+**Fix**: troca pro substituto oficial recomendado pela Groq, `openai/gpt-oss-20b`, pra chamadas
+de texto puro. Modelo de visão (`qwen/qwen3.8-27b`) continua existindo e ativo, sem mudança.
+TPM do free tier pra ambos os modelos hoje: 8K (era 6K no llama-3.1-8b-instant) —
+console.groq.com/docs/rate-limits.
+
+**Padrão confirmado nesta sessão**: a Groq muda/descontinua modelos do free tier com frequência
+maior que os outros provedores (já é a segunda vez — primeiro o modelo de visão certo, agora o
+de texto). Qualquer erro futuro tipo "model does not exist" na Groq deve ser checado primeiro em
+console.groq.com/docs/deprecations antes de qualquer outra investigação.
+
+**Ainda não re-testado ao vivo** depois deste fix — próximo passo é confirmar que
+`openai/gpt-oss-20b` extrai os critérios do mesmo edital real sem erro.

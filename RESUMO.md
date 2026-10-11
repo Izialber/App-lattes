@@ -1,7 +1,15 @@
+**Groq: segundo bug ao vivo, modelo de texto descontinuado** — depois do fix de limite de
+tokens (abaixo), reteste real bateu em erro novo: `llama-3.1-8b-instant` não existe mais pro
+free/developer tier (a Groq descontinuou em 2026-08-16). Trocado pro substituto oficial,
+`openai/gpt-oss-20b` (8K TPM no free tier, mais folga que antes). Padrão confirmado: a Groq
+muda modelos do free tier com frequência maior que os outros provedores — qualquer erro futuro
+"model does not exist" nela deve começar pela página de deprecations da Groq. Ainda não
+re-testado ao vivo depois deste fix.
+
 **Quarto provedor de LLM: Groq (gratuito, sem cartão de crédito)** — pedido do usuário logo
 após o Anthropic. API compatível com a OpenAI, mesma limitação de não ler PDF. Modelo
 `qwen/qwen3.8-27b` confirmado contra documentação oficial (único da Groq com suporte a imagem
-hoje). Ainda não testado ao vivo.
+hoje).
 
 **Terceiro provedor de LLM: Anthropic (Claude Haiku)** — motivado por um erro real ao vivo
 (Gemini sob alta demanda, "This model is currently experiencing high demand"). BYOK, mesmo padrão
