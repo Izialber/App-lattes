@@ -1476,3 +1476,71 @@ seria encontrada e o app criaria outra ao lado.
 
 **Não verificado nesta sessão**: a aba "Usuários" do painel de admin (deveria listar agora
 izialber@gmail.com com o código `9XHQQ2CS`) — não foi aberta.
+
+## Rodada autônoma (2026-10-24, usuário fora): suíte de testes rodada pela 1ª vez, fix da Groq, dossiê com PDF
+
+Usuário saiu e pediu pra fazer o que desse sem ele. Tudo abaixo está **sem commit e sem deploy** —
+a sessão paralela "Anexar pasta inteira de comprovantes com o LLM" trabalha na MESMA pasta, então
+nada foi commitado pra não misturar o trabalho das duas.
+
+**Suíte de testes rodada pela primeira vez na história do projeto** (Flutter 3.47.4 em
+`~/development/flutter`). Resultado inicial: não compilava. Causas, todas nos TESTES, não no app:
+- `_FakeTaskRunnerPassthrough implements TaskRunner` (3 arquivos) não herdava o getter concreto
+  `batchSizeBytesHint` → trocado pra `extends TaskRunner`.
+- `registerFallbackValue` faltando pra `UploadTask`, `ComprovanteEntrada`, `CertificadoCapturado`,
+  `Edital`, `Dossie` e `LlmProviderEscolhido` (mocktail exige pra usar `any()` com tipos próprios).
+- `cloud_storage_repository_impl_test` "usa subpasta": stub genérico com
+  `any(named: 'pastaPaiId')` também casava com a chamada da pasta RAIZ (`pastaPaiId: null`) —
+  stubs passaram a ser por nome de pasta. O código do app estava certo.
+- `llm_shared_providers_test` "carrega o provedor salvo": o teste esperava o microtask ANTES da
+  primeira leitura do provider, mas o `build()` só roda na leitura — lê uma vez antes de esperar.
+- Como rodar: a maioria na VM (`flutter test`); `certificate_upload_datasource_test` e
+  `llm_shared_providers_test` importam código com `dart:js_interop` e só rodam com
+  `flutter test --platform chrome`. O `lattes_xml_parser_test` usa `dart:io` e só roda na VM —
+  então a suíte inteira NÃO roda num comando só, nem num nem noutro.
+- `pubspec.lock` atualizado pelo `flutter test` (faltava `cloud_firestore`, adicionado ao
+  `pubspec.yaml` sem SDK local pra regenerar o lock).
+Resultado final: **180 testes passando** (173 VM + 7 Chrome), incluindo os testes novos da sessão
+paralela.
+
+**Bug ao vivo da Groq: `json_validate_failed`.** Com o edital real (`edital_4.2026_professor_
+substituto`), a Groq continua estourando o limite de 8K tokens/minuto do plano gratuito (limitação
+conhecida). Reduzido pro Anexo IV (tabela de pontuação, 1 página), o erro mudou: HTTP 400 "Failed
+to validate JSON" — com `response_format: json_object`, a Groq valida a saída do
+`openai/gpt-oss-20b` no servidor e rejeita se não for JSON puro. Fix em `GroqLlmDatasource`: nesse
+erro específico (`error.code == 'json_validate_failed'`), tenta de novo SEM `response_format`, e
+`decodificarJsonDoModelo` (que já aceita JSON cercado em markdown) decodifica. Teste novo
+`groq_llm_datasource_test.dart` com um `HttpClientAdapter` falso. **Não testado ao vivo** — precisa
+de deploy. Confirmado também: a troca de modelo de 2026-10-10 funciona (sumiu o "model does not
+exist").
+
+**Dossiê: comprovantes em PDF agora entram no PDF final.** Antes, `compilarDossieFinal` excluía
+todo comprovante com `mimeType == 'application/pdf'` — e desde o redesenho do Módulo 2 TODOS os
+comprovantes reais do usuário são PDF (27 de 27), então o dossiê falharia sempre com "Todos os N
+comprovantes aprovados são PDF de origem". `PdfMergeDatasource` reescrito com
+`syncfusion_flutter_pdf` (já dependência do projeto, usado pra ler o edital), que IMPORTA páginas
+de PDF existente — o que `package:pdf` não faz, motivo original da limitação:
+- Entrada nova: `ArquivoParaDossie(bytes, mimeType)` em vez de só bytes de imagem.
+- Cada página de PDF de origem vira `createTemplate()` desenhado numa página nova do mesmo
+  tamanho/orientação; imagens vão centralizadas numa A4.
+- Sumário numerado pelas páginas REAIS (um diploma de 2 páginas empurra os seguintes), 40 linhas
+  por página de sumário, títulos acima de 90 caracteres encurtados.
+- Bug achado validando com os PDFs reais do usuário: o diploma do IFRJ (999x598, paisagem) saía em
+  retrato e cortado — o Syncfusion reordena largura/altura conforme a orientação da seção; agora a
+  orientação é definida antes do tamanho. Coberto por teste.
+- Validado com 9 arquivos reais (diplomas, históricos, certificado de evento e um JPG): 10MB de
+  entrada → PDF de 18 páginas em 0,8s, texto das páginas preservado, renderizado e conferido
+  visualmente.
+- Aviso "PDF de origem — não entra na mesclagem" removido do checklist; `notaCompilacao` sobre
+  PDFs excluídos deixou de existir (limpa nota antiga de compilações anteriores).
+- Limitação conhecida: a fonte padrão (Helvetica/WinAnsi) não tem travessão "—" — some do
+  sumário. Acentos funcionam.
+- Estratégia `emPartes` (dossiê grande demais pra memória) continua não implementada, mas agora é
+  viável com a mesma técnica.
+
+**Teste ao vivo do Montar Dossiê ainda não chegou no checklist**: bloqueado pela extração de
+critérios (Groq com limite/erro acima). Próximo passo: deploy destas mudanças + reteste com a Groq
+(Anexo IV) ou com uma chave do Gemini pro edital inteiro.
+
+**Aba "Usuários" do admin — confirmada ao vivo**: lista izialber@gmail.com (código `9XHQQ2CS`,
+24/10/2026 18:28) e a conta de teste (código `4UF9YBFR`, 30/09/2026 15:00).

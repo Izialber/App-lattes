@@ -283,26 +283,6 @@ class _ComprovanteVinculoTileState extends ConsumerState<_ComprovanteVinculoTile
                 widget.entrada!.subtitulo,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-            if (widget.comprovante.mimeType == 'application/pdf')
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.info_outline, size: 14, color: Theme.of(context).colorScheme.error),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'PDF de origem — não entra na mesclagem automática do dossiê ainda.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Theme.of(context).colorScheme.error),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _criterioSelecionadoId,

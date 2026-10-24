@@ -65,19 +65,17 @@ class GroqLlmDatasource {
         },
     ];
 
+    final corpo = <String, dynamic>{
+      'model': imagemBytes != null && mimeType != null ? _modeloVisao : _modeloTexto,
+      'response_format': {'type': 'json_object'},
+      'messages': [
+        {'role': 'user', 'content': content},
+      ],
+    };
+
     final Response<dynamic> response;
     try {
-      response = await _dio.post<dynamic>(
-        _endpoint,
-        options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
-        data: {
-          'model': imagemBytes != null && mimeType != null ? _modeloVisao : _modeloTexto,
-          'response_format': {'type': 'json_object'},
-          'messages': [
-            {'role': 'user', 'content': content},
-          ],
-        },
-      );
+      response = await _postarComFallbackDeJsonMode(apiKey, corpo);
     } on DioException catch (e) {
       final excecao = LlmApiException.deChamadaHttp('Groq', e);
       // "Request too large... tokens per minute (ITPM)" é a mensagem bruta
@@ -95,6 +93,34 @@ class GroqLlmDatasource {
     }
 
     return decodificarJsonDoModelo(_extrairTexto(response.data));
+  }
+
+  /// Achado ao vivo (2026-10-24, edital real): com `response_format:
+  /// json_object`, a Groq valida a saída do modelo no servidor e, se o
+  /// `openai/gpt-oss-20b` gerar algo que não é JSON puro, responde HTTP 400
+  /// `json_validate_failed` em vez de devolver o texto. Nesse caso, uma
+  /// segunda tentativa SEM o modo JSON — `decodificarJsonDoModelo` já
+  /// aceita JSON cercado em markdown, que é o desvio mais comum.
+  Future<Response<dynamic>> _postarComFallbackDeJsonMode(
+    String apiKey,
+    Map<String, dynamic> corpo,
+  ) async {
+    final options = Options(headers: {'Authorization': 'Bearer $apiKey'});
+    try {
+      return await _dio.post<dynamic>(_endpoint, options: options, data: corpo);
+    } on DioException catch (e) {
+      if (!_ehFalhaDeValidacaoJson(e)) rethrow;
+      final semJsonMode = Map<String, dynamic>.of(corpo)..remove('response_format');
+      return _dio.post<dynamic>(_endpoint, options: options, data: semJsonMode);
+    }
+  }
+
+  bool _ehFalhaDeValidacaoJson(DioException e) {
+    try {
+      return (e.response?.data as Map)['error']['code'] == 'json_validate_failed';
+    } catch (_) {
+      return false;
+    }
   }
 
   String _extrairTexto(dynamic data) {

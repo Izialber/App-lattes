@@ -32,6 +32,10 @@ void main() {
     return c;
   }
 
+  setUpAll(() {
+    registerFallbackValue(LlmProviderEscolhido.geminiFlash);
+  });
+
   setUp(() {
     keyStore = MockLlmApiKeyStore();
     repository = MockLlmRepository();
@@ -54,8 +58,10 @@ void main() {
         .thenAnswer((_) async => 'chave-existente');
 
     final outroContainer = novoContainer();
-    // build() dispara o carregamento de forma assíncrona (fire-and-forget) —
-    // espera o microtask resolver antes de checar o estado atualizado.
+    // build() só roda na primeira leitura do provider, e dispara o
+    // carregamento de forma assíncrona (fire-and-forget) — lê uma vez pra
+    // disparar, espera o microtask resolver e só então confere o estado.
+    outroContainer.read(llmSettingsControllerProvider);
     await Future<void>.delayed(Duration.zero);
 
     final estado = outroContainer.read(llmSettingsControllerProvider);

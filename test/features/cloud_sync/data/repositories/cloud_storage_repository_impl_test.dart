@@ -54,6 +54,10 @@ void main() {
         subpastaNome: subpastaNome,
       );
 
+  setUpAll(() {
+    registerFallbackValue(taskBase());
+  });
+
   setUp(() {
     googleDrive = MockGoogleDriveDatasource();
     oneDrive = MockOneDriveGraphDatasource();
@@ -277,9 +281,13 @@ void main() {
 
     test('usa subpasta (categoria) dentro da pasta raiz quando informada', () async {
       when(() => localStore.lerPdf(any())).thenReturn(Uint8List.fromList([1, 2, 3]));
-      when(() => googleDrive.criarPastaSeNaoExistir(any())).thenAnswer((_) async => 'raiz123');
-      when(() => googleDrive.criarPastaSeNaoExistir(any(), pastaPaiId: any(named: 'pastaPaiId')))
-          .thenAnswer((_) async => 'subpasta456');
+      // Stubs por nome de pasta: `any(named: 'pastaPaiId')` também casa com
+      // `pastaPaiId: null`, então um stub genérico pra subpasta responderia
+      // à chamada da pasta raiz também.
+      when(() => googleDrive.criarPastaSeNaoExistir('Certificados Lattes',
+          pastaPaiId: any(named: 'pastaPaiId'))).thenAnswer((_) async => 'raiz123');
+      when(() => googleDrive.criarPastaSeNaoExistir('Formação acadêmica',
+          pastaPaiId: any(named: 'pastaPaiId'))).thenAnswer((_) async => 'subpasta456');
       when(() => googleDrive.iniciarSessaoUploadResumivel(
             pastaId: any(named: 'pastaId'),
             nomeArquivo: any(named: 'nomeArquivo'),

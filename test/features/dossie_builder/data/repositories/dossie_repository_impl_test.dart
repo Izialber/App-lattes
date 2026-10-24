@@ -30,7 +30,7 @@ class MockComprovanteLocalStore extends Mock implements ComprovanteLocalStore {}
 /// `certificate_repository_impl_test.dart`: `TaskRunner.run` é genérico, e
 /// mockar método genérico com mocktail é arriscado para algo que não é o
 /// próprio contrato do TaskRunner.
-class _FakeTaskRunnerPassthrough implements TaskRunner {
+class _FakeTaskRunnerPassthrough extends TaskRunner {
   @override
   int get estimatedSafeHeapBytes => 1024 * 1024 * 1024;
 
@@ -50,6 +50,13 @@ void main() {
   late MockDossieLocalStore localStore;
   late MockComprovanteLocalStore comprovanteLocalStore;
   late DossieRepositoryImpl repository;
+
+  setUpAll(() {
+    registerFallbackValue(const Edital(id: 'fallback', nomeArquivoOriginal: 'fallback.pdf'));
+    registerFallbackValue(
+      const Dossie(id: 'fallback', editalId: 'fallback', status: StatusDossie.aguardandoRevisaoHumana),
+    );
+  });
 
   setUp(() {
     llmEdital = MockLlmEditalDatasource();
@@ -376,7 +383,7 @@ void main() {
 
       resultado.match((falha) => expect(falha, isA<DossieFailure>()), (_) => fail('esperava Left'));
       verifyNever(() => pdfMerge.mesclarComSumario(
-            imagensEmOrdem: any(named: 'imagensEmOrdem'),
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
             titulosParaSumario: any(named: 'titulosParaSumario'),
           ));
     });
@@ -387,7 +394,7 @@ void main() {
       when(() => comprovanteLocalStore.lerBytes('c1'))
           .thenReturn(Uint8List.fromList([1, 2, 3]));
       when(() => pdfMerge.mesclarComSumario(
-            imagensEmOrdem: any(named: 'imagensEmOrdem'),
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
             titulosParaSumario: any(named: 'titulosParaSumario'),
           )).thenAnswer((_) async => [1, 2, 3, 4]);
 
@@ -398,12 +405,22 @@ void main() {
       resultado.match((_) => fail('esperava Right'), (d) {
         expect(d.status, StatusDossie.compilado);
         expect(d.caminhoPdfFinal, 'dossie1');
-        expect(d.notaCompilacao, isNull); // nenhum PDF excluído, nada a avisar
+        expect(d.notaCompilacao, isNull);
       });
       verify(() => localStore.salvarPdfFinal('dossie1', [1, 2, 3, 4])).called(1);
     });
 
-    test('exclui comprovantes de origem PDF e usa só os de imagem', () async {
+    ComprovanteEntrada comprovantePdf(String id) => ComprovanteEntrada(
+          id: id,
+          entradaId: 'e1',
+          categoria: CategoriaEntradaLattes.curso,
+          nomeArquivo: '$id.pdf',
+          mimeType: 'application/pdf',
+          anexadoEm: DateTime(2026),
+          statusSincronizacao: StatusSincronizacaoComprovante.sincronizado,
+        );
+
+    test('inclui comprovantes de origem PDF junto com os de imagem, na ordem aprovada', () async {
       final dossie = Dossie(
         id: 'dossie1',
         editalId: 'edital1',
@@ -417,21 +434,11 @@ void main() {
       when(() => comprovanteLocalStore.buscar('c1')).thenReturn(comprovanteImagem('c1'));
       when(() => comprovanteLocalStore.lerBytes('c1'))
           .thenReturn(Uint8List.fromList([1, 2, 3]));
-      when(() => comprovanteLocalStore.buscar('c2')).thenReturn(
-        ComprovanteEntrada(
-          id: 'c2',
-          entradaId: 'e1',
-          categoria: CategoriaEntradaLattes.curso,
-          nomeArquivo: 'certificado.pdf',
-          mimeType: 'application/pdf',
-          anexadoEm: DateTime(2026),
-          statusSincronizacao: StatusSincronizacaoComprovante.sincronizado,
-        ),
-      );
+      when(() => comprovanteLocalStore.buscar('c2')).thenReturn(comprovantePdf('c2'));
       when(() => comprovanteLocalStore.lerBytes('c2'))
           .thenReturn(Uint8List.fromList([9, 9, 9]));
       when(() => pdfMerge.mesclarComSumario(
-            imagensEmOrdem: any(named: 'imagensEmOrdem'),
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
             titulosParaSumario: any(named: 'titulosParaSumario'),
           )).thenAnswer((_) async => [1, 2, 3, 4]);
 
@@ -440,34 +447,38 @@ void main() {
 
       expect(resultado.isRight(), isTrue);
       final chamada = verify(() => pdfMerge.mesclarComSumario(
-            imagensEmOrdem: captureAny(named: 'imagensEmOrdem'),
-            titulosParaSumario: captureAny(named: 'titulosParaSumario'),
+            arquivosEmOrdem: captureAny(named: 'arquivosEmOrdem'),
+            titulosParaSumario: any(named: 'titulosParaSumario'),
           )).captured;
-      final imagens = chamada[0] as List<List<int>>;
-      expect(imagens, hasLength(1)); // só o comprovante de imagem (c1), não o de PDF (c2)
+      final arquivos = chamada.single as List<ArquivoParaDossie>;
+      expect(arquivos.map((a) => a.mimeType), ['image/jpeg', 'application/pdf']);
+      expect(arquivos.last.bytes, [9, 9, 9]);
       resultado.match((_) => fail('esperava Right'), (d) {
-        // achado da 2ª revisão de código: o resultado precisa avisar quantos
-        // comprovantes ficaram fora, não só o checklist antes de compilar.
-        expect(d.notaCompilacao, contains('1 comprovante'));
-        expect(d.mensagemDegradacao, isNull); // não é degradação por memória
+        expect(d.notaCompilacao, isNull); // ninguém fica de fora — nada a avisar
+        expect(d.mensagemDegradacao, isNull);
       });
     });
 
-    test('DossieFailure quando todos os aprovados são PDF de origem', () async {
+    test('compila quando todos os aprovados são PDF de origem', () async {
       when(() => localStore.buscarDossie('dossie1')).thenReturn(dossieComAprovado());
-      when(() => comprovanteLocalStore.buscar('c1')).thenReturn(
-        ComprovanteEntrada(
-          id: 'c1',
-          entradaId: 'e1',
-          categoria: CategoriaEntradaLattes.curso,
-          nomeArquivo: 'certificado.pdf',
-          mimeType: 'application/pdf',
-          anexadoEm: DateTime(2026),
-          statusSincronizacao: StatusSincronizacaoComprovante.sincronizado,
-        ),
-      );
+      when(() => comprovanteLocalStore.buscar('c1')).thenReturn(comprovantePdf('c1'));
       when(() => comprovanteLocalStore.lerBytes('c1'))
           .thenReturn(Uint8List.fromList([1, 2, 3]));
+      when(() => pdfMerge.mesclarComSumario(
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
+            titulosParaSumario: any(named: 'titulosParaSumario'),
+          )).thenAnswer((_) async => [1, 2, 3, 4]);
+
+      final resultado =
+          await repository.compilarDossieFinal('dossie1', entradas: [entradaCursoX]);
+
+      resultado.match((_) => fail('esperava Right'), (d) => expect(d.status, StatusDossie.compilado));
+    });
+
+    test('DossieFailure quando nenhum comprovante aprovado tem arquivo local', () async {
+      when(() => localStore.buscarDossie('dossie1')).thenReturn(dossieComAprovado());
+      when(() => comprovanteLocalStore.buscar('c1')).thenReturn(comprovantePdf('c1'));
+      when(() => comprovanteLocalStore.lerBytes('c1')).thenReturn(null);
 
       final resultado =
           await repository.compilarDossieFinal('dossie1', entradas: [entradaCursoX]);
@@ -483,7 +494,7 @@ void main() {
       when(() => comprovanteLocalStore.lerBytes('c1'))
           .thenReturn(Uint8List.fromList([1, 2, 3]));
       when(() => pdfMerge.mesclarComSumario(
-            imagensEmOrdem: any(named: 'imagensEmOrdem'),
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
             titulosParaSumario: any(named: 'titulosParaSumario'),
           )).thenAnswer((_) async => [1, 2, 3, 4]);
 
@@ -493,7 +504,7 @@ void main() {
 
       expect(resultado.isRight(), isTrue);
       final chamada = verify(() => pdfMerge.mesclarComSumario(
-            imagensEmOrdem: any(named: 'imagensEmOrdem'),
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
             titulosParaSumario: captureAny(named: 'titulosParaSumario'),
           )).captured;
       expect(chamada.single, ['c1.jpg']); // nome do arquivo, não um título vazio/null

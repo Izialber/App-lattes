@@ -1,21 +1,32 @@
-import 'dart:typed_data';
+import 'dart:math';
+import 'dart:ui';
 
-import 'package:pdf/widgets.dart' as pw;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../../../../core/platform/task_runner/task_runner.dart';
 import '../../domain/usecases/decidir_estrategia_de_memoria.dart';
 
-/// Monta o PDF final do dossiê (sumário + uma página por certificado) a
-/// partir das imagens ORIGINAIS dos certificados — não dos PDFs individuais
-/// já enviados ao Drive pelo módulo 3. Isso é uma mudança em relação ao
-/// contrato originalmente documentado aqui (`pdfsEmOrdem` como PDFs prontos)
-/// — ver DECISOES.md, "Mesclagem do dossiê": `package:pdf` é uma biblioteca
-/// de ESCRITA de PDF, sem capacidade de importar páginas de um PDF já
-/// existente, então "mesclar PDFs prontos" não é possível com as
-/// dependências deste projeto. Construir o dossiê direto a partir das
-/// imagens (mesma técnica de `PdfBuilderDatasource`, só que N páginas num
-/// documento só em vez de N documentos de 1 página) contorna o problema por
-/// completo, sem precisar de nenhuma capacidade de "importação" de PDF.
+/// Um comprovante pronto pra entrar no dossiê: os bytes ORIGINAIS do
+/// arquivo anexado (imagem JPEG/PNG já normalizada pelo módulo 2, ou PDF).
+class ArquivoParaDossie {
+  const ArquivoParaDossie({required this.bytes, required this.mimeType});
+
+  final List<int> bytes;
+  final String mimeType;
+
+  bool get ehPdf => mimeType == 'application/pdf';
+}
+
+/// Monta o PDF final do dossiê (sumário + as páginas de cada comprovante,
+/// em ordem) a partir dos arquivos ORIGINAIS dos comprovantes.
+///
+/// Usa `syncfusion_flutter_pdf` (já dependência do projeto, pra ler o texto
+/// do edital) em vez de `package:pdf`: `package:pdf` só ESCREVE PDF, não
+/// importa páginas de um PDF existente — por isso, até 2026-10-24, os
+/// comprovantes de origem PDF ficavam fora do dossiê (ver DECISOES.md,
+/// "Mesclagem do dossiê"). Com o Syncfusion, cada página de um PDF de
+/// origem vira um template desenhado numa página nova do mesmo tamanho, e
+/// imagens são desenhadas centralizadas numa página A4.
 ///
 /// TODA a mesclagem passa por [TaskRunner.run] — nunca chamada direta no
 /// isolate de UI.
@@ -24,34 +35,32 @@ class PdfMergeDatasource {
 
   const PdfMergeDatasource(this._taskRunner);
 
-  /// Mesclagem direta (estratégia [EstrategiaMesclagemDossie.direta]):
-  /// [imagensEmOrdem] são bytes de imagem (JPEG/PNG — o mesmo formato já
-  /// normalizado pelo módulo 2), NÃO PDFs. Certificados cuja origem já era
-  /// PDF (suportado desde 2026-09-16) não podem passar por aqui — ver
-  /// pendência em DECISOES.md; `DossieRepositoryImpl` os exclui antes de
-  /// chamar este método.
+  /// Linhas do sumário por página A4 — com fonte 11 e margem de 40pt,
+  /// cabem ~45; 40 deixa folga pro título "Sumário" na primeira página.
+  static const _linhasDeSumarioPorPagina = 40;
+
+  /// Mesclagem direta (estratégia [EstrategiaMesclagemDossie.direta]).
+  /// [titulosParaSumario] tem um título por item de [arquivosEmOrdem].
   Future<List<int>> mesclarComSumario({
-    required List<List<int>> imagensEmOrdem,
+    required List<ArquivoParaDossie> arquivosEmOrdem,
     required List<String> titulosParaSumario,
   }) {
     return _taskRunner.run(
-      task: () async => _montarDocumento(imagensEmOrdem, titulosParaSumario),
-      estimatedInputBytes: _somaBytes(imagensEmOrdem),
+      task: () async => _montarDocumento(arquivosEmOrdem, titulosParaSumario),
+      estimatedInputBytes: _somaBytes(arquivosEmOrdem.map((a) => a.bytes)),
       debugLabel: 'mesclar-dossie-direto',
     );
   }
 
-  /// PENDENTE: a estratégia [EstrategiaMesclagemDossie.emPartes] depende de
-  /// mesclar PDFs INTERMEDIÁRIOS já gerados (não imagens cruas) — o mesmo
-  /// problema de "package:pdf não importa PDF existente" descrito na
-  /// docstring da classe, mas sem a saída de "construir direto das
-  /// imagens" (os intermediários já são PDFs multi-página, não uma lista de
-  /// imagens). `DossieRepositoryImpl.compilarDossieFinal` retorna uma
-  /// falha clara para este caso em vez de chamar este método.
+  /// PENDENTE: a estratégia [EstrategiaMesclagemDossie.emPartes] (mesclar
+  /// PDFs intermediários gerados em lotes). Com o Syncfusion isso passou a
+  /// ser possível — mesma técnica de [_copiarPaginasDePdf] —, mas ainda não
+  /// foi implementado; `DossieRepositoryImpl.compilarDossieFinal` retorna
+  /// uma falha clara para este caso em vez de chamar este método.
   Future<List<int>> mesclarLote(List<List<int>> pdfsDoLote) {
     throw UnimplementedError(
       'PdfMergeDatasource.mesclarLote: mesclagem em partes pendente — ver '
-      'DECISOES.md, "Mesclagem do dossiê" (package:pdf não importa PDF existente).',
+      'DECISOES.md, "Mesclagem do dossiê".',
     );
   }
 
@@ -67,55 +76,132 @@ class PdfMergeDatasource {
   }
 
   /// Heurística de estimativa de bytes de saída de uma mesclagem direta.
-  int estimarBytesSaida(List<List<int>> imagensEmOrdem) {
-    return (_somaBytes(imagensEmOrdem) * 1.6).round();
+  int estimarBytesSaida(List<List<int>> arquivosEmOrdem) {
+    return (_somaBytes(arquivosEmOrdem) * 1.6).round();
   }
 
-  int _somaBytes(List<List<int>> listas) =>
+  int _somaBytes(Iterable<List<int>> listas) =>
       listas.fold<int>(0, (soma, bytes) => soma + bytes.length);
 
   Future<List<int>> _montarDocumento(
-    List<List<int>> imagensEmOrdem,
-    List<String> titulosParaSumario,
+    List<ArquivoParaDossie> arquivos,
+    List<String> titulos,
   ) async {
-    final documento = pw.Document();
+    // Abre cada PDF de origem uma vez só: precisa saber quantas páginas
+    // cada comprovante ocupa ANTES de escrever o sumário, pra numerar certo.
+    final origens = [
+      for (final arquivo in arquivos) arquivo.ehPdf ? PdfDocument(inputBytes: arquivo.bytes) : null,
+    ];
+    final documento = PdfDocument();
+    try {
+      final paginasPorItem = [for (final origem in origens) origem?.pages.count ?? 1];
+      final paginasDeSumario = max(1, (titulos.length / _linhasDeSumarioPorPagina).ceil());
 
-    documento.addPage(
-      pw.Page(
-        build: (context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text('Sumário', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 16),
-            for (var i = 0; i < titulosParaSumario.length; i++)
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 4),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Expanded(child: pw.Text(titulosParaSumario[i])),
-                    // Sumário é a página 1; cada certificado ocupa
-                    // exatamente 1 página em ordem — daí o `i + 2`.
-                    pw.Text('${i + 2}'),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
+      final primeiraPaginaPorItem = <int>[];
+      var proxima = paginasDeSumario + 1;
+      for (final paginas in paginasPorItem) {
+        primeiraPaginaPorItem.add(proxima);
+        proxima += paginas;
+      }
 
-    for (final imagem in imagensEmOrdem) {
-      documento.addPage(
-        pw.Page(
-          margin: pw.EdgeInsets.zero,
-          build: (context) => pw.Center(
-            child: pw.Image(pw.MemoryImage(Uint8List.fromList(imagem)), fit: pw.BoxFit.contain),
-          ),
-        ),
-      );
+      _escreverSumario(documento, titulos, primeiraPaginaPorItem, paginasDeSumario);
+
+      for (var i = 0; i < arquivos.length; i++) {
+        final origem = origens[i];
+        if (origem != null) {
+          _copiarPaginasDePdf(documento, origem);
+        } else {
+          _desenharImagem(documento, arquivos[i].bytes);
+        }
+      }
+
+      return await documento.save();
+    } finally {
+      documento.dispose();
+      for (final origem in origens) {
+        origem?.dispose();
+      }
     }
-
-    return documento.save();
   }
+
+  void _escreverSumario(
+    PdfDocument documento,
+    List<String> titulos,
+    List<int> primeiraPaginaPorItem,
+    int paginasDeSumario,
+  ) {
+    final secao = documento.sections!.add()
+      ..pageSettings.size = PdfPageSize.a4
+      ..pageSettings.margins.all = 40;
+    final fonteTitulo = PdfStandardFont(PdfFontFamily.helvetica, 20, style: PdfFontStyle.bold);
+    final fonte = PdfStandardFont(PdfFontFamily.helvetica, 11);
+    final alinhadoADireita = PdfStringFormat(alignment: PdfTextAlignment.right);
+
+    for (var pagina = 0; pagina < paginasDeSumario; pagina++) {
+      final page = secao.pages.add();
+      final largura = page.getClientSize().width;
+      var y = 0.0;
+      if (pagina == 0) {
+        page.graphics.drawString('Sumário', fonteTitulo, bounds: Rect.fromLTWH(0, 0, largura, 30));
+        y = 40;
+      }
+
+      final inicio = pagina * _linhasDeSumarioPorPagina;
+      final fim = min(inicio + _linhasDeSumarioPorPagina, titulos.length);
+      for (var i = inicio; i < fim; i++) {
+        page.graphics.drawString(
+          _encurtar(titulos[i]),
+          fonte,
+          bounds: Rect.fromLTWH(0, y, largura - 40, 16),
+        );
+        page.graphics.drawString(
+          '${primeiraPaginaPorItem[i]}',
+          fonte,
+          bounds: Rect.fromLTWH(largura - 40, y, 40, 16),
+          format: alinhadoADireita,
+        );
+        y += 18;
+      }
+    }
+  }
+
+  /// Uma seção por página copiada: cada página do PDF de origem mantém o
+  /// próprio tamanho e rotação (diploma em paisagem, histórico em retrato).
+  void _copiarPaginasDePdf(PdfDocument documento, PdfDocument origem) {
+    for (var i = 0; i < origem.pages.count; i++) {
+      final paginaOrigem = origem.pages[i];
+      final tamanho = paginaOrigem.size;
+      // Orientação ANTES do tamanho: o Syncfusion reordena largura/altura
+      // conforme a orientação da seção (retrato por padrão) — achado com o
+      // diploma real do IFRJ (999x598), que saía em retrato e cortado.
+      final secao = documento.sections!.add()
+        ..pageSettings.orientation = tamanho.width > tamanho.height
+            ? PdfPageOrientation.landscape
+            : PdfPageOrientation.portrait
+        ..pageSettings.size = tamanho
+        ..pageSettings.margins.all = 0
+        ..pageSettings.rotate = paginaOrigem.rotation;
+      secao.pages.add().graphics.drawPdfTemplate(paginaOrigem.createTemplate(), Offset.zero, tamanho);
+    }
+  }
+
+  void _desenharImagem(PdfDocument documento, List<int> bytes) {
+    final secao = documento.sections!.add()
+      ..pageSettings.size = PdfPageSize.a4
+      ..pageSettings.margins.all = 0;
+    final page = secao.pages.add();
+    final area = page.getClientSize();
+    final imagem = PdfBitmap(bytes);
+    final escala = min(area.width / imagem.width, area.height / imagem.height);
+    final largura = imagem.width * escala;
+    final altura = imagem.height * escala;
+    page.graphics.drawImage(
+      imagem,
+      Rect.fromLTWH((area.width - largura) / 2, (area.height - altura) / 2, largura, altura),
+    );
+  }
+
+  /// Títulos muito longos (nome de evento inteiro) estouram a linha do
+  /// sumário e encavalariam no número da página.
+  String _encurtar(String titulo) => titulo.length <= 90 ? titulo : '${titulo.substring(0, 87)}...';
 }

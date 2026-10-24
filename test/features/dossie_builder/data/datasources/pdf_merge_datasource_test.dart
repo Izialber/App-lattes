@@ -1,12 +1,14 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import 'package:certificados_lattes/core/platform/task_runner/task_runner.dart';
 import 'package:certificados_lattes/features/dossie_builder/data/datasources/pdf_merge_datasource.dart';
 
-class _FakeTaskRunnerPassthrough implements TaskRunner {
+class _FakeTaskRunnerPassthrough extends TaskRunner {
   @override
   int get estimatedSafeHeapBytes => 1024 * 1024 * 1024;
 
@@ -19,31 +21,101 @@ class _FakeTaskRunnerPassthrough implements TaskRunner {
       task();
 }
 
-List<int> _pngValido() {
+ArquivoParaDossie _pngValido() {
   final imagem = img.Image(width: 4, height: 4);
   img.fill(imagem, color: img.ColorRgb8(255, 0, 0));
-  return img.encodePng(imagem);
+  return ArquivoParaDossie(bytes: img.encodePng(imagem), mimeType: 'image/png');
+}
+
+/// PDF de origem com [paginas] páginas, cada uma com o texto "origem N".
+Future<ArquivoParaDossie> _pdfDeOrigem(int paginas, {Size? tamanho}) async {
+  final documento = PdfDocument();
+  if (tamanho != null) {
+    documento.pageSettings
+      ..orientation =
+          tamanho.width > tamanho.height ? PdfPageOrientation.landscape : PdfPageOrientation.portrait
+      ..size = tamanho
+      ..margins.all = 0;
+  }
+  for (var i = 1; i <= paginas; i++) {
+    documento.pages.add().graphics.drawString(
+          'origem $i',
+          PdfStandardFont(PdfFontFamily.helvetica, 12),
+          bounds: const Rect.fromLTWH(0, 0, 200, 20),
+        );
+  }
+  final bytes = await documento.save();
+  documento.dispose();
+  return ArquivoParaDossie(bytes: bytes, mimeType: 'application/pdf');
 }
 
 void main() {
-  test('produz um PDF válido (começa com %PDF) com sumário + 1 página por imagem', () async {
-    final datasource = PdfMergeDatasource(_FakeTaskRunnerPassthrough());
-    final png1 = _pngValido();
-    final png2 = _pngValido();
+  final datasource = PdfMergeDatasource(_FakeTaskRunnerPassthrough());
 
+  test('produz um PDF válido (começa com %PDF) com sumário + 1 página por imagem', () async {
     final pdfBytes = await datasource.mesclarComSumario(
-      imagensEmOrdem: [png1, png2],
+      arquivosEmOrdem: [_pngValido(), _pngValido()],
       titulosParaSumario: ['Certificado A', 'Certificado B'],
     );
 
-    expect(pdfBytes, isNotEmpty);
     final cabecalho = ascii.decode(pdfBytes.take(5).toList(), allowInvalid: true);
     expect(cabecalho, '%PDF-');
+    final resultado = PdfDocument(inputBytes: pdfBytes);
+    expect(resultado.pages.count, 3);
+    resultado.dispose();
+  });
+
+  test('copia todas as páginas de um PDF de origem e numera o sumário pelas páginas reais', () async {
+    final pdfBytes = await datasource.mesclarComSumario(
+      arquivosEmOrdem: [await _pdfDeOrigem(2), _pngValido()],
+      titulosParaSumario: ['Diploma (2 páginas)', 'Certificado em imagem'],
+    );
+
+    final resultado = PdfDocument(inputBytes: pdfBytes);
+    // sumário (1) + PDF de origem (2) + imagem (1)
+    expect(resultado.pages.count, 4);
+
+    final extrator = PdfTextExtractor(resultado);
+    final sumario = extrator.extractText(startPageIndex: 0, endPageIndex: 0);
+    expect(sumario, contains('Sumário'));
+    expect(sumario, contains('Diploma (2 páginas)'));
+    // diploma começa na página 2; a imagem, depois das 2 páginas dele, na 4
+    expect(sumario, matches(RegExp(r'Diploma \(2 páginas\)\s*2')));
+    expect(sumario, matches(RegExp(r'Certificado em imagem\s*4')));
+    expect(extrator.extractText(startPageIndex: 2, endPageIndex: 2), contains('origem 2'));
+    resultado.dispose();
+  });
+
+  test('página de origem em paisagem continua em paisagem (diploma real do IFRJ, 999x598)', () async {
+    final pdfBytes = await datasource.mesclarComSumario(
+      arquivosEmOrdem: [await _pdfDeOrigem(1, tamanho: const Size(999.69, 598.55))],
+      titulosParaSumario: ['Diploma em paisagem'],
+    );
+
+    final resultado = PdfDocument(inputBytes: pdfBytes);
+    final tamanho = resultado.pages[1].size;
+    expect(tamanho.width, closeTo(999.69, 0.5));
+    expect(tamanho.height, closeTo(598.55, 0.5));
+    resultado.dispose();
+  });
+
+  test('sumário com mais títulos do que cabem numa página ocupa páginas extras', () async {
+    final arquivos = List.generate(45, (_) => _pngValido());
+    final pdfBytes = await datasource.mesclarComSumario(
+      arquivosEmOrdem: arquivos,
+      titulosParaSumario: [for (var i = 1; i <= 45; i++) 'Item $i'],
+    );
+
+    final resultado = PdfDocument(inputBytes: pdfBytes);
+    expect(resultado.pages.count, 2 + 45);
+    final segundaPaginaDoSumario =
+        PdfTextExtractor(resultado).extractText(startPageIndex: 1, endPageIndex: 1);
+    // Item 41 é o primeiro da 2ª página do sumário; itens começam na página 3
+    expect(segundaPaginaDoSumario, matches(RegExp(r'Item 41\s*43')));
+    resultado.dispose();
   });
 
   test('estimarBytesSaida aplica o mesmo fator de folga de DecidirEstrategiaDeMemoria', () {
-    final datasource = PdfMergeDatasource(_FakeTaskRunnerPassthrough());
-
     final estimativa = datasource.estimarBytesSaida([
       List.filled(100, 0),
       List.filled(200, 0),

@@ -24,7 +24,7 @@ class MockHeicConverter extends Mock implements HeicConverter {}
 /// testar aqui algo que não é o próprio contrato do TaskRunner. Este fake
 /// só executa a task de verdade, sem nenhum chunking (mesmo comportamento
 /// observável de `TaskRunnerWeb` para o que este teste verifica).
-class _FakeTaskRunnerPassthrough implements TaskRunner {
+class _FakeTaskRunnerPassthrough extends TaskRunner {
   @override
   int get estimatedSafeHeapBytes => 1024 * 1024 * 1024;
 
@@ -51,6 +51,10 @@ void main() {
         mimeType: mimeType,
         status: StatusCertificado.capturado,
       );
+
+  setUpAll(() {
+    registerFallbackValue(certificadoBase());
+  });
 
   setUp(() {
     llmDatasource = MockLlmExtractionDatasource();

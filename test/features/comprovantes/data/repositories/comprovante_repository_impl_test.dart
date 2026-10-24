@@ -19,6 +19,17 @@ void main() {
   late MockHeicConverter heicConverter;
   late ComprovanteRepositoryImpl repository;
 
+  setUpAll(() {
+    registerFallbackValue(ComprovanteEntrada(
+      id: 'fallback',
+      entradaId: 'fallback',
+      categoria: CategoriaEntradaLattes.curso,
+      nomeArquivo: 'fallback.pdf',
+      mimeType: 'application/pdf',
+      anexadoEm: DateTime(2026),
+    ));
+  });
+
   setUp(() {
     localStore = MockComprovanteLocalStore();
     heicConverter = MockHeicConverter();

@@ -210,37 +210,26 @@ class DossieRepositoryImpl implements DossieRepository {
     await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.compilando));
 
     final entradasPorId = {for (final e in entradas) e.id: e};
-    final imagensElegiveis = <List<int>>[];
+    final arquivos = <ArquivoParaDossie>[];
     final titulos = <String>[];
-    var totalPdfDeOrigemExcluidos = 0;
 
     for (final vinculo in aprovados) {
       final comprovante = _comprovanteLocalStore.buscar(vinculo.comprovanteId);
       final bytes = _comprovanteLocalStore.lerBytes(vinculo.comprovanteId);
       if (comprovante == null || bytes == null) continue;
 
-      // PDFs de origem não podem ser mesclados automaticamente ainda — ver
-      // docstring de PdfMergeDatasource. Excluídos silenciosamente do PDF
-      // final em vez de travar a compilação inteira por causa deles.
-      if (comprovante.mimeType == 'application/pdf') {
-        totalPdfDeOrigemExcluidos++;
-        continue;
-      }
-
-      imagensElegiveis.add(bytes);
+      arquivos.add(ArquivoParaDossie(bytes: bytes, mimeType: comprovante.mimeType));
       titulos.add(entradasPorId[comprovante.entradaId]?.titulo ?? comprovante.nomeArquivo);
     }
 
-    if (imagensElegiveis.isEmpty) {
-      final mensagem = totalPdfDeOrigemExcluidos > 0
-          ? 'Todos os $totalPdfDeOrigemExcluidos comprovantes aprovados são PDF de origem, '
-              'que ainda não pode ser mesclado automaticamente.'
-          : 'Nenhum comprovante aprovado tem arquivo disponível localmente.';
+    if (arquivos.isEmpty) {
       await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.falhaCompilacao));
-      return Left(DossieFailure(mensagem));
+      return const Left(
+        DossieFailure('Nenhum comprovante aprovado tem arquivo disponível localmente.'),
+      );
     }
 
-    final tamanhos = imagensElegiveis.map((bytes) => bytes.length).toList();
+    final tamanhos = arquivos.map((a) => a.bytes.length).toList();
     final plano = _decidirEstrategia(
       tamanhosBytesPorPdf: tamanhos,
       estimatedSafeHeapBytes: _taskRunner.estimatedSafeHeapBytes,
@@ -249,12 +238,7 @@ class DossieRepositoryImpl implements DossieRepository {
 
     switch (plano.estrategia) {
       case EstrategiaMesclagemDossie.direta:
-        return _compilarDireto(
-          dossie,
-          imagensElegiveis,
-          titulos,
-          totalPdfDeOrigemExcluidos: totalPdfDeOrigemExcluidos,
-        );
+        return _compilarDireto(dossie, arquivos, titulos);
       case EstrategiaMesclagemDossie.emPartes:
         await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.falhaCompilacao));
         return const Left(
@@ -286,36 +270,24 @@ class DossieRepositoryImpl implements DossieRepository {
 
   Future<Either<Failure, Dossie>> _compilarDireto(
     Dossie dossie,
-    List<List<int>> imagensElegiveis,
-    List<String> titulos, {
-    required int totalPdfDeOrigemExcluidos,
-  }) async {
+    List<ArquivoParaDossie> arquivos,
+    List<String> titulos,
+  ) async {
     try {
       final pdfFinal = await _pdfMergeDatasource.mesclarComSumario(
-        imagensEmOrdem: imagensElegiveis,
+        arquivosEmOrdem: arquivos,
         titulosParaSumario: titulos,
       );
       await _localStore.salvarPdfFinal(dossie.id, pdfFinal);
 
-      // Achado da revisão de código: antes da compilação, o checklist já
-      // avisa quais certificados são PDF de origem (não entram na
-      // mesclagem automática), mas o RESULTADO da compilação em si não
-      // comunicava isso — um usuário que não reparou no aviso anterior via
-      // só "compilado com sucesso" sem saber que faltam certificados no PDF
-      // final. Usa `notaCompilacao`, não `mensagemDegradacao` — este é um
-      // sucesso, não uma degradação por memória (2ª revisão de código:
-      // reaproveitar o campo de degradação criaria falso positivo para
-      // qualquer consumidor futuro que checasse "degradação == houve
-      // problema de memória"). `limparNotaCompilacao` evita que uma nota de
-      // uma tentativa anterior fique presa aqui para sempre.
+      // `limparNotaCompilacao`: compilações anteriores a 2026-10-24 podiam
+      // ter gravado aqui o aviso de "PDF de origem ficou de fora" — com a
+      // mesclagem de PDF via Syncfusion, ninguém mais fica de fora, e a
+      // nota antiga não pode ficar presa no dossiê.
       final atualizado = dossie.copyWith(
         status: StatusDossie.compilado,
         caminhoPdfFinal: dossie.id,
-        notaCompilacao: totalPdfDeOrigemExcluidos > 0
-            ? '$totalPdfDeOrigemExcluidos certificado(s) aprovado(s) são PDF de origem e não '
-                'entraram neste PDF — mesclagem automática de PDF ainda não suportada.'
-            : null,
-        limparNotaCompilacao: totalPdfDeOrigemExcluidos == 0,
+        limparNotaCompilacao: true,
       );
       await _localStore.salvarDossie(atualizado);
       return Right(atualizado);
