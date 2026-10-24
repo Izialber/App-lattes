@@ -52,7 +52,8 @@ class AnthropicLlmDatasource {
 
     final Response<dynamic> response;
     try {
-      response = await _dio.post<dynamic>(
+      response = await postComRetentativaEmSobrecarga(
+        _dio,
         _endpoint,
         options: Options(headers: {
           'x-api-key': apiKey,

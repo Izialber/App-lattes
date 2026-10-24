@@ -12,9 +12,13 @@ import 'llm_json_utils.dart';
 /// "CORS nas chamadas ao LLM"); caso isso mude, o ponto de troca é este
 /// datasource, sem impacto em `domain`.
 class GeminiLlmDatasource {
-  GeminiLlmDatasource([Dio? dio]) : _dio = dio ?? criarDioLlm();
+  GeminiLlmDatasource([Dio? dio, this.esperaEntreTentativas = const Duration(seconds: 3)])
+      : _dio = dio ?? criarDioLlm();
 
   final Dio _dio;
+
+  /// Só os testes mudam (para zero); ver [postComRetentativaEmSobrecarga].
+  final Duration esperaEntreTentativas;
 
   static const _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -46,8 +50,10 @@ class GeminiLlmDatasource {
 
     final Response<dynamic> response;
     try {
-      response = await _dio.post<dynamic>(
+      response = await postComRetentativaEmSobrecarga(
+        _dio,
         '$_baseUrl/$_model:generateContent',
+        espera: esperaEntreTentativas,
         queryParameters: {'key': apiKey},
         data: {
           'contents': [

@@ -70,6 +70,7 @@ void main() {
   });
 
   test('selecionarProvedor troca o provedor e reseta status/erro', () {
+    when(() => keyStore.obterChave(any())).thenAnswer((_) async => null);
     final notifier = container.read(llmSettingsControllerProvider.notifier);
     notifier.selecionarProvedor(LlmProviderEscolhido.gpt4oMini);
 
@@ -115,5 +116,68 @@ void main() {
     expect(estado.mensagemErro, 'chave inválida');
     verifyNever(() => keyStore.salvarChave(any(), any()));
     verifyNever(() => keyStore.salvarProvedorEscolhido(any()));
+  });
+
+  test('selecionarProvedor mostra se o provedor escolhido já tem chave salva', () async {
+    when(() => keyStore.obterChave(LlmProviderEscolhido.claudeHaiku))
+        .thenAnswer((_) async => 'chave-antiga');
+
+    container.read(llmSettingsControllerProvider.notifier)
+        .selecionarProvedor(LlmProviderEscolhido.claudeHaiku);
+    await Future<void>.delayed(Duration.zero);
+
+    final estado = container.read(llmSettingsControllerProvider);
+    expect(estado.provider, LlmProviderEscolhido.claudeHaiku);
+    expect(estado.jaConfigurado, isTrue);
+  });
+
+  test('o provedor em uso continua o mesmo ao só trocar de aba', () async {
+    when(() => keyStore.obterProvedorEscolhido())
+        .thenAnswer((_) async => LlmProviderEscolhido.groq);
+    when(() => keyStore.obterChave(any())).thenAnswer((_) async => 'k');
+
+    final outroContainer = novoContainer();
+    outroContainer.read(llmSettingsControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+    outroContainer.read(llmSettingsControllerProvider.notifier)
+        .selecionarProvedor(LlmProviderEscolhido.geminiFlash);
+    await Future<void>.delayed(Duration.zero);
+
+    final estado = outroContainer.read(llmSettingsControllerProvider);
+    expect(estado.provider, LlmProviderEscolhido.geminiFlash);
+    expect(estado.ativo, LlmProviderEscolhido.groq);
+  });
+
+  test('usarChaveSalva ativa o provedor sem pedir a chave de novo', () async {
+    when(() => keyStore.obterChave(LlmProviderEscolhido.claudeHaiku))
+        .thenAnswer((_) async => 'chave-antiga');
+    when(() => keyStore.salvarProvedorEscolhido(LlmProviderEscolhido.claudeHaiku))
+        .thenAnswer((_) async {});
+
+    final notifier = container.read(llmSettingsControllerProvider.notifier);
+    notifier.selecionarProvedor(LlmProviderEscolhido.claudeHaiku);
+    await Future<void>.delayed(Duration.zero);
+    await notifier.usarChaveSalva();
+
+    final estado = container.read(llmSettingsControllerProvider);
+    expect(estado.ativo, LlmProviderEscolhido.claudeHaiku);
+    verify(() => keyStore.salvarProvedorEscolhido(LlmProviderEscolhido.claudeHaiku)).called(1);
+    verifyNever(() => repository.testarConexao(
+          provider: any(named: 'provider'),
+          apiKey: any(named: 'apiKey'),
+        ));
+  });
+
+  test('salvarETestar com sucesso passa a ser o provedor em uso', () async {
+    when(() => repository.testarConexao(
+          provider: LlmProviderEscolhido.geminiFlash,
+          apiKey: 'chave-boa',
+        )).thenAnswer((_) async => const Right(unit));
+    when(() => keyStore.salvarChave(any(), any())).thenAnswer((_) async {});
+    when(() => keyStore.salvarProvedorEscolhido(any())).thenAnswer((_) async {});
+
+    await container.read(llmSettingsControllerProvider.notifier).salvarETestar('chave-boa');
+
+    expect(container.read(llmSettingsControllerProvider).ativo, LlmProviderEscolhido.geminiFlash);
   });
 }

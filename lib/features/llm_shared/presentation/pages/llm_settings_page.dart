@@ -73,6 +73,13 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
                       .read(llmSettingsControllerProvider.notifier)
                       .selecionarProvedor(selecionados.first),
             ),
+            const SizedBox(height: 8),
+            Text(
+              estado.ativo == null
+                  ? 'Nenhum provedor em uso ainda.'
+                  : 'Em uso agora: ${_rotulo(estado.ativo!)}.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 16),
             _instrucoesChave(context, estado.provider),
             const SizedBox(height: 16),
@@ -90,6 +97,17 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
               const Padding(
                 padding: EdgeInsets.only(bottom: 16),
                 child: Text('Já existe uma chave salva para este provedor.'),
+              ),
+            if (estado.jaConfigurado &&
+                estado.ativo != estado.provider &&
+                estado.status != StatusTesteLlm.testando)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: OutlinedButton(
+                  onPressed: () =>
+                      ref.read(llmSettingsControllerProvider.notifier).usarChaveSalva(),
+                  child: Text('Usar a chave salva do ${_rotulo(estado.provider)}'),
+                ),
               ),
             if (estado.status == StatusTesteLlm.falha)
               Padding(
@@ -119,6 +137,13 @@ class _LlmSettingsPageState extends ConsumerState<LlmSettingsPage> {
       ),
     );
   }
+
+  String _rotulo(LlmProviderEscolhido provider) => switch (provider) {
+        LlmProviderEscolhido.geminiFlash => 'Gemini Flash',
+        LlmProviderEscolhido.gpt4oMini => 'GPT-4o mini',
+        LlmProviderEscolhido.claudeHaiku => 'Claude Haiku',
+        LlmProviderEscolhido.groq => 'Groq',
+      };
 
   /// Sem `url_launcher` no projeto — o endereço é `SelectableText` para o
   /// usuário copiar e abrir manualmente numa nova aba, em vez de um link

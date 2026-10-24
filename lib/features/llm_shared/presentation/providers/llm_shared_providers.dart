@@ -53,11 +53,16 @@ class LlmSettingsState {
   final String? mensagemErro;
   final bool jaConfigurado;
 
+  /// Provedor que o app usa hoje. Só muda ao salvar uma chave validada ou ao
+  /// escolher "usar a chave salva" — trocar de aba ([provider]) não muda.
+  final LlmProviderEscolhido? ativo;
+
   const LlmSettingsState({
     this.provider = LlmProviderEscolhido.geminiFlash,
     this.status = StatusTesteLlm.ocioso,
     this.mensagemErro,
     this.jaConfigurado = false,
+    this.ativo,
   });
 
   LlmSettingsState copyWith({
@@ -66,12 +71,14 @@ class LlmSettingsState {
     String? mensagemErro,
     bool limparErro = false,
     bool? jaConfigurado,
+    LlmProviderEscolhido? ativo,
   }) {
     return LlmSettingsState(
       provider: provider ?? this.provider,
       status: status ?? this.status,
       mensagemErro: limparErro ? null : (mensagemErro ?? this.mensagemErro),
       jaConfigurado: jaConfigurado ?? this.jaConfigurado,
+      ativo: ativo ?? this.ativo,
     );
   }
 }
@@ -89,14 +96,35 @@ class LlmSettingsController extends Notifier<LlmSettingsState> {
     if (provider == null) return;
 
     final chave = await store.obterChave(provider);
-    state = state.copyWith(provider: provider, jaConfigurado: chave != null && chave.isNotEmpty);
+    state = state.copyWith(
+      provider: provider,
+      ativo: provider,
+      jaConfigurado: chave != null && chave.isNotEmpty,
+    );
   }
 
   /// Trocar de provedor reseta o resultado do teste anterior — "conexão
   /// validada" para o Gemini não diz nada sobre uma chave da OpenAI ainda
-  /// não testada.
+  /// não testada. Mas mostra se ESTE provedor já tem chave salva: sem isso
+  /// o usuário colava de novo uma chave que já estava lá.
   void selecionarProvedor(LlmProviderEscolhido provider) {
-    state = LlmSettingsState(provider: provider);
+    state = LlmSettingsState(provider: provider, ativo: state.ativo);
+    _carregarChaveSalva(provider);
+  }
+
+  Future<void> _carregarChaveSalva(LlmProviderEscolhido provider) async {
+    final chave = await ref.read(llmApiKeyStoreProvider).obterChave(provider);
+    // O usuário pode ter trocado de aba de novo enquanto a leitura rodava.
+    if (state.provider != provider) return;
+    state = state.copyWith(jaConfigurado: chave != null && chave.isNotEmpty);
+  }
+
+  /// Volta a usar um provedor cuja chave já foi validada antes, sem colar a
+  /// chave de novo — útil quando o provedor em uso está sob alta demanda.
+  Future<void> usarChaveSalva() async {
+    if (!state.jaConfigurado) return;
+    await ref.read(llmApiKeyStoreProvider).salvarProvedorEscolhido(state.provider);
+    state = state.copyWith(ativo: state.provider);
   }
 
   Future<void> salvarETestar(String apiKey) async {
@@ -115,7 +143,11 @@ class LlmSettingsController extends Notifier<LlmSettingsState> {
         final store = ref.read(llmApiKeyStoreProvider);
         await store.salvarChave(state.provider, apiKey);
         await store.salvarProvedorEscolhido(state.provider);
-        state = state.copyWith(status: StatusTesteLlm.sucesso, jaConfigurado: true);
+        state = state.copyWith(
+          status: StatusTesteLlm.sucesso,
+          jaConfigurado: true,
+          ativo: state.provider,
+        );
       },
     );
   }
