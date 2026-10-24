@@ -111,6 +111,11 @@ alguns eventos. Ou você indica os arquivos, ou as entradas ficam sem comprovant
   com o push deste plano; conferir no próximo dossiê compilado ao vivo.
 - **Groq extrai poucos critérios**: talvez melhorar o prompt de `LlmEditalDatasource`, ou deixar
   a Groq só para editais curtos.
+- **Aviso do `flutter analyze`** em `dossie_checklist_page.dart` (`DropdownButtonFormField.value`
+  obsoleto): NÃO é só trocar por `initialValue`. `initialValue` só vale na criação do campo, e a
+  seleção mudada pelo app depois não apareceria. Fazer junto com uma `key` que mude com
+  `_criterioSelecionadoId` (ex.: `ValueKey(_criterioSelecionadoId)`) e retestar a tela de
+  revisão ao vivo.
 - **Limpeza**: apagar as branches `backup-main-2026-10-24` e `publicar-sem-lote` (e a worktree
   temporária dela, se ainda existir; `git worktree prune`).
 
