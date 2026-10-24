@@ -15,7 +15,9 @@ Testado ao vivo e funcionando (detalhes em `DECISOES.md`, entradas de 2026-10-24
 - Anexar vários de uma vez com "Escolher arquivos": 10 de 10 arquivos classificados certo.
 - Suíte de testes: 180 passando.
 
-A `main` local e o GitHub estão iguais (`2a59769`). Não há nada pendente de commit.
+Ao fim da sessão de 2026-10-24, tudo foi commitado. Se o push final não tiver sido feito, a
+`main` local estará 2 commits à frente do GitHub (este plano e a correção do travessão). Nesse
+caso, o primeiro passo é `git push origin main`, que também publica o site.
 
 ## Antes de começar (o Claude faz)
 
@@ -45,12 +47,18 @@ A automação não preenche seletor de pasta.
   Se a Groq estourar o limite, o app deve cair na heurística local e mostrar um aviso.
 - Diga ao Claude o que apareceu. Ele registra no `DECISOES.md`.
 
-### 2. [ ] Fallback do anexo em lote sem IA — Claude faz
-- Em Configurações, escolher um provedor **sem chave salva** (ex.: GPT-4o mini), sem salvar
-  nada. Se a troca exigir salvar, pular este item e anotar.
-- Repetir o lote com os 10 arquivos do teste de 2026-10-24 (lista no `DECISOES.md`).
-- **Esperado:** aviso "confira com mais atenção" e sugestões feitas pelo nome do arquivo.
-- Ao final, voltar o provedor para **Groq**.
+### 2. [ ] Fallback do anexo em lote sem IA — junto com o item 3 ou 4
+Verificado em 2026-10-24: só selecionar a aba de outro provedor em Configurações NÃO troca o
+provedor ativo. Ele só muda ao "Salvar e testar conexão" com uma chave válida. Então não dá
+para forçar a falha da IA sem uma chave.
+- **Quando fazer:** logo depois de salvar a chave do Gemini ou da Anthropic (itens 3 e 4). Antes,
+  revogar ou trocar essa chave no site do provedor por uma inválida, ou testar sem rede (modo
+  avião depois de abrir a tela de revisão não serve: a sugestão roda ao escolher os arquivos).
+  Alternativa mais simples: um lote de ~100 arquivos com a Groq pode estourar o limite por
+  minuto no 2º lote. O item 1 já cobre isso.
+- **Esperado:** aviso "confira com mais atenção" com a mensagem real do provedor, e sugestões
+  feitas pelo nome do arquivo.
+- Ao final, deixar o provedor que você escolher ativo.
 
 ### 3. [ ] Dossiê com o edital INTEIRO via Gemini — precisa de você
 - **Você:** pegar uma chave em https://aistudio.google.com/apikey, colar em Configurações →
@@ -98,8 +106,9 @@ alguns eventos. Ou você indica os arquivos, ou as entradas ficam sem comprovant
 
 - **Compilação em partes** (`EstrategiaMesclagemDossie.emPartes`) para dossiês grandes demais
   para a memória. Viável agora com a mesma técnica do Syncfusion de `PdfMergeDatasource`.
-- **Sumário sem travessão**: a fonte padrão (Helvetica/WinAnsi) não tem "—". Trocar o caractere
-  ou embutir uma fonte TTF.
+- ~~Sumário sem travessão~~: **corrigido em 2026-10-24** (commit "fix(dossie): travessão..."):
+  travessões e aspas tipográficas viram hífen e aspas simples. Testado em unidade. Publica junto
+  com o push deste plano; conferir no próximo dossiê compilado ao vivo.
 - **Groq extrai poucos critérios**: talvez melhorar o prompt de `LlmEditalDatasource`, ou deixar
   a Groq só para editais curtos.
 - **Limpeza**: apagar as branches `backup-main-2026-10-24` e `publicar-sem-lote` (e a worktree

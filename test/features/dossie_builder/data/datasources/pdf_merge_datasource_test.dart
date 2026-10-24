@@ -86,6 +86,18 @@ void main() {
     resultado.dispose();
   });
 
+  test('travessão do título vira hífen no sumário em vez de sumir', () async {
+    final pdfBytes = await datasource.mesclarComSumario(
+      arquivosEmOrdem: [_pngValido()],
+      titulosParaSumario: ['Técnico — diploma'],
+    );
+
+    final resultado = PdfDocument(inputBytes: pdfBytes);
+    final sumario = PdfTextExtractor(resultado).extractText(startPageIndex: 0, endPageIndex: 0);
+    expect(sumario, contains('Técnico - diploma'));
+    resultado.dispose();
+  });
+
   test('página de origem em paisagem continua em paisagem (diploma real do IFRJ, 999x598)', () async {
     final pdfBytes = await datasource.mesclarComSumario(
       arquivosEmOrdem: [await _pdfDeOrigem(1, tamanho: const Size(999.69, 598.55))],

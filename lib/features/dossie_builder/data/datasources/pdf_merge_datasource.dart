@@ -202,6 +202,14 @@ class PdfMergeDatasource {
   }
 
   /// Títulos muito longos (nome de evento inteiro) estouram a linha do
-  /// sumário e encavalariam no número da página.
-  String _encurtar(String titulo) => titulo.length <= 90 ? titulo : '${titulo.substring(0, 87)}...';
+  /// sumário e encavalariam no número da página. Antes de encurtar, troca
+  /// travessões e aspas tipográficas, que a fonte padrão (Helvetica/WinAnsi)
+  /// não desenha — sumiam do sumário sem aviso (achado com títulos reais).
+  String _encurtar(String titulo) {
+    final simples = titulo
+        .replaceAll(RegExp('[–—]'), '-')
+        .replaceAll(RegExp('[‘’]'), "'")
+        .replaceAll(RegExp('[“”]'), '"');
+    return simples.length <= 90 ? simples : '${simples.substring(0, 87)}...';
+  }
 }
