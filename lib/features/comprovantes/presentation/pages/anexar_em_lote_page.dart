@@ -300,9 +300,10 @@ class _LinhaItem extends ConsumerWidget {
                   switch (item.origem) {
                     OrigemSugestao.llm => 'Sugerido pela IA',
                     OrigemSugestao.nomeDoArquivo => 'Sugerido pelo nome do arquivo',
+                    OrigemSugestao.jaAnexado => 'Já anexado antes',
                     null => 'Escolhido por você',
                   },
-                  if (item.jaAnexadoNaEntrada)
+                  if (item.jaAnexadoNaEntrada && item.origem != OrigemSugestao.jaAnexado)
                     'já existe um arquivo com esse nome nesta entrada',
                 ].join(' · '),
                 style: tema.textTheme.bodySmall,

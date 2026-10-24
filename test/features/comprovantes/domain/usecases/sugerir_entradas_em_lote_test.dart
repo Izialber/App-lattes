@@ -136,4 +136,67 @@ void main() {
         ));
     expect(resultado.sugestoes.every((s) => s.entradaId == null), isTrue);
   });
+
+  test('arquivo com nome já anexado vai para a entrada dele sem passar pelo LLM', () async {
+    when(() => repository.sugerirPorLlm(
+          arquivos: any(named: 'arquivos'),
+          entradas: any(named: 'entradas'),
+        )).thenAnswer((_) async => const Right({'b': null}));
+
+    final resultado = await SugerirEntradasEmLote(repository)(
+      arquivos: const [
+        ArquivoParaSugestao(id: 'a', caminho: 'Diplomas/diploma-eng.pdf'),
+        ArquivoParaSugestao(id: 'b', caminho: 'CEO Award.pdf'),
+      ],
+      entradas: _entradas,
+      entradaJaAnexadaPorNome: const {'diploma-eng.pdf': 'eng'},
+    );
+
+    expect(resultado.sugestoes, const [
+      SugestaoArquivo(arquivoId: 'a', entradaId: 'eng', origem: OrigemSugestao.jaAnexado),
+      SugestaoArquivo(arquivoId: 'b', entradaId: null, origem: OrigemSugestao.llm),
+    ]);
+    final enviados = verify(() => repository.sugerirPorLlm(
+          arquivos: captureAny(named: 'arquivos'),
+          entradas: any(named: 'entradas'),
+        )).captured.single as List<ArquivoParaSugestao>;
+    expect(enviados.map((a) => a.id), ['b']);
+  });
+
+  test('vale também quando o LLM falha: o já anexado não cai em "sem entrada"', () async {
+    when(() => repository.sugerirPorLlm(
+          arquivos: any(named: 'arquivos'),
+          entradas: any(named: 'entradas'),
+        )).thenAnswer((_) async => const Left(LlmFailure('API key not valid')));
+
+    final resultado = await SugerirEntradasEmLote(repository)(
+      arquivos: const [
+        ArquivoParaSugestao(id: 'a', caminho: 'IFRJ Semac 5.pdf'),
+        ArquivoParaSugestao(id: 'b', caminho: 'CEO Award.pdf'),
+      ],
+      entradas: _entradas,
+      entradaJaAnexadaPorNome: const {'IFRJ Semac 5.pdf': 'eng'},
+    );
+
+    expect(resultado.avisoFallback, contains('API key not valid'));
+    expect(resultado.sugestoes, const [
+      SugestaoArquivo(arquivoId: 'a', entradaId: 'eng', origem: OrigemSugestao.jaAnexado),
+      SugestaoArquivo(arquivoId: 'b', entradaId: null, origem: OrigemSugestao.nomeDoArquivo),
+    ]);
+  });
+
+  test('todos já anexados: nem chama o LLM', () async {
+    final resultado = await SugerirEntradasEmLote(repository)(
+      arquivos: const [ArquivoParaSugestao(id: 'a', caminho: 'x/diploma-eng.pdf')],
+      entradas: _entradas,
+      entradaJaAnexadaPorNome: const {'diploma-eng.pdf': 'eng'},
+    );
+
+    expect(resultado.avisoFallback, isNull);
+    expect(resultado.sugestoes.single.origem, OrigemSugestao.jaAnexado);
+    verifyNever(() => repository.sugerirPorLlm(
+          arquivos: any(named: 'arquivos'),
+          entradas: any(named: 'entradas'),
+        ));
+  });
 }

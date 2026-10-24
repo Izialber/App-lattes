@@ -153,6 +153,11 @@ class AnexarEmLoteController extends AutoDisposeNotifier<AnexarEmLoteState> {
                 ArquivoParaSugestao(id: item.id, caminho: item.arquivo.caminhoRelativo),
           ],
           entradas: _entradas,
+          entradaJaAnexadaPorNome: {
+            for (final MapEntry(key: entradaId, value: lista)
+                in ref.read(comprovantesControllerProvider).comprovantes.entries)
+              for (final c in lista) c.nomeArquivo: entradaId,
+          },
         );
 
     final porArquivo = {for (final s in resultado.sugestoes) s.arquivoId: s};

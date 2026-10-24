@@ -6,6 +6,8 @@ import '../../../../core/platform/task_runner/task_runner.dart';
 import '../../../comprovantes/data/local/comprovante_local_store.dart';
 import '../../../comprovantes/domain/entities/comprovante_entrada.dart';
 import '../../../comprovantes/domain/entities/entrada_lattes_ref.dart';
+import '../../../comprovantes/domain/entities/sugerir_entrada_por_nome.dart'
+    show palavrasSignificativas;
 import '../../domain/entities/criterio_pontuacao.dart';
 import '../../domain/entities/dossie.dart';
 import '../../domain/entities/edital.dart';
@@ -163,9 +165,10 @@ class DossieRepositoryImpl implements DossieRepository {
     );
   }
 
-  Set<String> _palavrasRelevantes(String texto) {
-    return texto.split(RegExp(r'\W+')).where((palavra) => palavra.length > 2).toSet();
-  }
+  /// Mesma normalização do anexo em lote (sem acento, sem palavras vazias).
+  /// Não usar `\W+` aqui: sem `unicode: true`, letra acentuada vira separador
+  /// e "magistério" casava com "Rio de Janeiro" pelo pedaço "rio".
+  Set<String> _palavrasRelevantes(String texto) => palavrasSignificativas(texto);
 
   @override
   Future<Either<Failure, Dossie>> registrarDecisaoVinculo({

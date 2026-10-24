@@ -47,7 +47,7 @@ A automação não preenche seletor de pasta.
   Se a Groq estourar o limite, o app deve cair na heurística local e mostrar um aviso.
 - Diga ao Claude o que apareceu. Ele registra no `DECISOES.md`.
 
-### 2. [ ] Fallback do anexo em lote sem IA — junto com o item 3 ou 4
+### 2. [x] Fallback do anexo em lote sem IA — junto com o item 3 ou 4
 Verificado em 2026-10-24: só selecionar a aba de outro provedor em Configurações NÃO troca o
 provedor ativo. Ele só muda ao "Salvar e testar conexão" com uma chave válida. Então não dá
 para forçar a falha da IA sem uma chave.
@@ -60,7 +60,7 @@ para forçar a falha da IA sem uma chave.
   feitas pelo nome do arquivo.
 - Ao final, deixar o provedor que você escolher ativo.
 
-### 3. [ ] Dossiê com o edital INTEIRO via Gemini — precisa de você
+### 3. [x] Dossiê com o edital INTEIRO via Gemini — precisa de você
 - **Você:** pegar uma chave em https://aistudio.google.com/apikey, colar em Configurações →
   Gemini Flash → "Salvar e testar conexão". O Claude não digita chaves.
 - **Claude:** Montar dossiê → enviar
@@ -101,6 +101,28 @@ Anote o que quebrar.
 ### 7. [ ] Completar os comprovantes que faltam — você decide
 19 entradas ainda sem arquivo: experiências profissionais, produções, mestrado em andamento e
 alguns eventos. Ou você indica os arquivos, ou as entradas ficam sem comprovante.
+
+## Resultados de 2026-10-24 (noite)
+
+- **Item 3 (Gemini, edital inteiro):** os 18 itens do Anexo IV vieram certos (pontos e
+  quantidade máxima). Só falta o teto de 20 pts da experiência. Levou ~3 min. Dossiê com 5
+  aprovados compilou: 21 págs., sumário com acentos certos. Dropdown com `initialValue` + key
+  funcionou ao vivo.
+- **Bug achado e corrigido (não publicado):** a sugestão de critério do dossiê usava `\W+`, que
+  quebra palavras acentuadas ("magistério" casava com "Rio de Janeiro"). Agora usa
+  `palavrasSignificativas`.
+- **Item 2 (fallback):** com chave inválida, o aviso trouxe a mensagem real do Gemini e as
+  sugestões vieram pelo nome. Chave original restaurada depois.
+- **Bug achado e corrigido (não publicado):** no fallback, arquivo já anexado caía em "Sem
+  entrada" em vez de "Descartados". Agora arquivo com nome já anexado vai direto para a entrada
+  dele e não vai ao LLM.
+- **Gemini lento:** `gemini-flash-latest` = `gemini-3.8-flash`. Uma pergunta trivial levou 81 s
+  (só 253 tokens de raciocínio) e houve 503 "high demand". O gargalo é a capacidade do Google, não
+  o raciocínio. O timeout de 90 s está no limite. Avaliar fixar um modelo mais estável ou aumentar
+  o timeout. `thinkingLevel: minimal` dá 400 nesse modelo.
+- O provedor ativo agora é o Gemini. Ele foi gravado direto no armazenamento, porque o "Salvar e
+  testar" não tinha trocado o provedor. Investigar: na tela, trocar de aba também não mostra se
+  aquele provedor já tem chave salva.
 
 ## Trabalho de código pendente (não é teste — pedir à parte)
 

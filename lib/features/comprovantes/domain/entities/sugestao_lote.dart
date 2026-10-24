@@ -18,7 +18,10 @@ class ArquivoParaSugestao extends Equatable {
 
 /// De onde veio a sugestão — a tela de revisão mostra isso pro usuário
 /// saber o quanto confiar em cada linha.
-enum OrigemSugestao { llm, nomeDoArquivo }
+/// [jaAnexado]: o currículo já tem um comprovante com esse mesmo nome de
+/// arquivo, e a sugestão é a entrada dele (a tela então descarta como
+/// duplicata).
+enum OrigemSugestao { llm, nomeDoArquivo, jaAnexado }
 
 /// Sugestão pra UM arquivo do lote. [entradaId] null = "sem entrada": nem o
 /// LLM nem a heurística acharam uma entrada correspondente.

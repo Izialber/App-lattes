@@ -11,6 +11,12 @@ import '../repositories/sugestao_entrada_repository.dart';
 /// provedor que acabou de falhar, e o usuário recebe [ResultadoSugestaoLote.
 /// avisoFallback] explicando o que aconteceu. Nada é anexado aqui: a tela de
 /// revisão vem antes (ver DECISOES.md).
+///
+/// Antes de tudo, arquivo cujo nome já está em [entradaJaAnexadaPorNome] vai
+/// direto para a entrada onde ele já foi anexado, sem passar pelo LLM nem
+/// pela heurística: rodar o lote de novo sobre a mesma pasta é o caso
+/// normal, e sem isso esses arquivos caíam em "sem entrada" quando a IA
+/// falhava, em vez de aparecer como duplicata.
 class SugerirEntradasEmLote {
   final SugestaoEntradaRepository _repository;
 
@@ -24,7 +30,38 @@ class SugerirEntradasEmLote {
   Future<ResultadoSugestaoLote> call({
     required List<ArquivoParaSugestao> arquivos,
     required List<EntradaLattesRef> entradas,
+    Map<String, String> entradaJaAnexadaPorNome = const {},
   }) async {
+    final jaAnexados = <String, SugestaoArquivo>{
+      for (final a in arquivos)
+        if (entradaJaAnexadaPorNome[a.caminho.split('/').last] case final entradaId?)
+          a.id: SugestaoArquivo(
+            arquivoId: a.id,
+            entradaId: entradaId,
+            origem: OrigemSugestao.jaAnexado,
+          ),
+    };
+    if (jaAnexados.isEmpty) return _sugerir(arquivos: arquivos, entradas: entradas);
+
+    final resto = await _sugerir(
+      arquivos: [for (final a in arquivos) if (!jaAnexados.containsKey(a.id)) a],
+      entradas: entradas,
+    );
+    final porId = {
+      ...jaAnexados,
+      for (final s in resto.sugestoes) s.arquivoId: s,
+    };
+    return ResultadoSugestaoLote(
+      sugestoes: [for (final a in arquivos) porId[a.id]!],
+      avisoFallback: resto.avisoFallback,
+    );
+  }
+
+  Future<ResultadoSugestaoLote> _sugerir({
+    required List<ArquivoParaSugestao> arquivos,
+    required List<EntradaLattesRef> entradas,
+  }) async {
+    if (arquivos.isEmpty) return const ResultadoSugestaoLote(sugestoes: []);
     if (entradas.isEmpty) {
       return ResultadoSugestaoLote(
         sugestoes: [

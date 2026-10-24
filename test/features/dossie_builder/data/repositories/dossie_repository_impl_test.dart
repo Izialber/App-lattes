@@ -236,6 +236,67 @@ void main() {
       resultado.match((_) => fail('esperava Right'), (sugestoes) => expect(sugestoes, isEmpty));
     });
 
+    test('acento não quebra palavras: "magistério" não casa com "Rio de Janeiro"', () async {
+      // Regressão do teste ao vivo de 2026-10-24 com o Anexo IV do edital 4/2026 do IFRJ:
+      // com `\W+` ASCII, "magistério" virava "magist" + "rio" e "Experiência" virava
+      // "experi" + "ncia", e qualquer entrada do Rio de Janeiro ou com "-ência" no título
+      // era sugerida como experiência no magistério.
+      final edital = Edital(
+        id: 'edital1',
+        nomeArquivoOriginal: 'edital.pdf',
+        criterios: const [
+          CriterioPontuacao(id: 'crit-magisterio', descricao: 'Experiência no magistério (por ano)'),
+          CriterioPontuacao(
+            id: 'crit-profissional',
+            descricao: 'Experiência em área profissional específica (por ano)',
+          ),
+        ],
+      );
+      final entradas = [
+        entrada(id: 'e1', titulo: 'Mind The Sec Rio de Janeiro 2021', subtitulo: '2021'),
+        entrada(
+          id: 'e2',
+          titulo: 'Autocad 3D',
+          subtitulo: 'Fundação de Apoio à Escola Técnica do Estado do Rio de Janeiro · 2010–2010',
+        ),
+        entrada(id: 'e3', titulo: 'Docência do Ensino Superior', subtitulo: 'FACULDADE FOCUS'),
+      ];
+
+      final resultado = await repository.sugerirVinculos(
+        edital: edital,
+        comprovantesSincronizados: [
+          comprovante(id: 'c1', entradaId: 'e1'),
+          comprovante(id: 'c2', entradaId: 'e2'),
+          comprovante(id: 'c3', entradaId: 'e3'),
+        ],
+        entradas: entradas,
+      );
+
+      resultado.match((_) => fail('esperava Right'), (sugestoes) => expect(sugestoes, isEmpty));
+    });
+
+    test('casa palavras acentuadas mesmo quando um lado vem sem acento', () async {
+      final edital = Edital(
+        id: 'edital1',
+        nomeArquivoOriginal: 'edital.pdf',
+        criterios: const [
+          CriterioPontuacao(id: 'crit-magisterio', descricao: 'Experiência no magistério (por ano)'),
+          CriterioPontuacao(id: 'crit-mestrado', descricao: 'Mestrado específico'),
+        ],
+      );
+      final entradaDoComp = entrada(titulo: 'Professor - experiencia de magisterio', subtitulo: '');
+
+      final resultado = await repository.sugerirVinculos(
+        edital: edital,
+        comprovantesSincronizados: [comprovante()],
+        entradas: [entradaDoComp],
+      );
+
+      resultado.match((_) => fail('esperava Right'), (sugestoes) {
+        expect(sugestoes.single.criterioId, 'crit-magisterio');
+      });
+    });
+
     test('comprovante órfão (sem entrada correspondente) usa o nome do arquivo no match',
         () async {
       final edital = Edital(
