@@ -43,6 +43,14 @@ class _FakeTaskRunnerPassthrough extends TaskRunner {
       task();
 }
 
+/// Teto de memória de 1000 bytes: com folga de 1.6x, 3 arquivos de 300
+/// bytes (1440) não cabem de uma vez, mas cada um sozinho (480) cabe — e o
+/// hint de lote (600) comporta só 1 por lote. Força a compilação em partes.
+class _FakeTaskRunnerPoucaMemoria extends _FakeTaskRunnerPassthrough {
+  @override
+  int get estimatedSafeHeapBytes => 1000;
+}
+
 void main() {
   late MockLlmEditalDatasource llmEdital;
   late MockPdfMergeDatasource pdfMerge;
@@ -53,6 +61,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(const Edital(id: 'fallback', nomeArquivoOriginal: 'fallback.pdf'));
+    registerFallbackValue(<ArquivoParaDossie>[]);
     registerFallbackValue(
       const Dossie(id: 'fallback', editalId: 'fallback', status: StatusDossie.aguardandoRevisaoHumana),
     );
@@ -569,6 +578,65 @@ void main() {
             titulosParaSumario: captureAny(named: 'titulosParaSumario'),
           )).captured;
       expect(chamada.single, ['c1.jpg']); // nome do arquivo, não um título vazio/null
+    });
+
+    test('dossiê grande demais para uma vez só: compila em partes, lote a lote', () async {
+      final dossie = Dossie(
+        id: 'dossie1',
+        editalId: 'edital1',
+        status: StatusDossie.aguardandoRevisaoHumana,
+        vinculosRevisados: [
+          for (final id in ['c1', 'c2', 'c3'])
+            VinculoAprovado(comprovanteId: id, criterioId: 'crit1', decisao: DecisaoVinculo.aprovado),
+        ],
+      );
+      when(() => localStore.buscarDossie('dossie1')).thenReturn(dossie);
+      for (final id in ['c1', 'c2', 'c3']) {
+        when(() => comprovanteLocalStore.buscar(id)).thenReturn(comprovantePdf(id));
+        when(() => comprovanteLocalStore.lerBytes(id)).thenReturn(Uint8List(300));
+      }
+      when(() => pdfMerge.mesclarLote(any())).thenAnswer(
+        (inv) async => LoteMesclado(
+          bytes: [7],
+          paginasPorItem: [for (final _ in inv.positionalArguments.first as List) 1],
+        ),
+      );
+      when(() => pdfMerge.mesclarIntermediariosComSumario(
+            lotes: any(named: 'lotes'),
+            titulosParaSumario: any(named: 'titulosParaSumario'),
+          )).thenAnswer((_) async => [1, 2, 3]);
+
+      final repositoryPoucaMemoria = DossieRepositoryImpl(
+        llmEdital,
+        pdfMerge,
+        _FakeTaskRunnerPoucaMemoria(),
+        localStore,
+        comprovanteLocalStore,
+      );
+      final resultado =
+          await repositoryPoucaMemoria.compilarDossieFinal('dossie1', entradas: const []);
+
+      resultado.match((f) => fail('esperava Right: ${f.message}'), (d) {
+        expect(d.status, StatusDossie.compilado);
+        expect(d.totalDeLotes, 0);
+      });
+      verify(() => pdfMerge.mesclarLote(any())).called(3);
+      final lotes = verify(() => pdfMerge.mesclarIntermediariosComSumario(
+            lotes: captureAny(named: 'lotes'),
+            titulosParaSumario: any(named: 'titulosParaSumario'),
+          )).captured.single as List<LoteMesclado>;
+      expect(lotes, hasLength(3));
+      verify(() => localStore.salvarPdfFinal('dossie1', [1, 2, 3])).called(1);
+      verifyNever(() => pdfMerge.mesclarComSumario(
+            arquivosEmOrdem: any(named: 'arquivosEmOrdem'),
+            titulosParaSumario: any(named: 'titulosParaSumario'),
+          ));
+      // o progresso passou por "lote 3 de 3"
+      final salvos = verify(() => localStore.salvarDossie(captureAny())).captured.cast<Dossie>();
+      expect(
+        salvos.any((d) => d.status == StatusDossie.compilandoEmPartes && d.loteAtual == 3 && d.totalDeLotes == 3),
+        isTrue,
+      );
     });
   });
 }

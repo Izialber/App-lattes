@@ -28,21 +28,25 @@ class PlanoDeMesclagem extends Equatable {
   /// Quantidade total de lotes (0 quando não se aplica).
   final int totalDeLotes;
 
+  /// Quantos PDFs entram em cada lote, na ordem dos arquivos (vazia quando
+  /// não se aplica). Soma = total de arquivos.
+  final List<int> tamanhosDosLotes;
+
   const PlanoDeMesclagem({
     required this.estrategia,
     this.tamanhoDoLote = 0,
     this.totalDeLotes = 0,
+    this.tamanhosDosLotes = const [],
   });
 
   @override
-  List<Object?> get props => [estrategia, tamanhoDoLote, totalDeLotes];
+  List<Object?> get props => [estrategia, tamanhoDoLote, totalDeLotes, tamanhosDosLotes];
 }
 
 /// Lógica pura (sem I/O, sem Flutter) que decide como compilar o dossiê
 /// dado o tamanho estimado de cada PDF de entrada e o teto de memória atual
 /// (`TaskRunner.estimatedSafeHeapBytes`/`batchSizeBytesHint`). Separada da
-/// execução real da mesclagem (`PdfMergeDatasource`, que continua stub
-/// nesta entrega) porque é a parte que carrega a regra de negócio e que
+/// execução real da mesclagem (`PdfMergeDatasource`) porque é a parte que carrega a regra de negócio e que
 /// mais vale a pena ter coberta por teste determinístico, sem depender de
 /// bytes de PDF reais.
 class DecidirEstrategiaDeMemoria {
@@ -83,6 +87,7 @@ class DecidirEstrategiaDeMemoria {
       estrategia: EstrategiaMesclagemDossie.emPartes,
       tamanhoDoLote: tamanhosDosLotes.reduce((a, b) => a > b ? a : b),
       totalDeLotes: tamanhosDosLotes.length,
+      tamanhosDosLotes: tamanhosDosLotes,
     );
   }
 

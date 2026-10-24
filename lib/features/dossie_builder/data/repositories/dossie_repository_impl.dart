@@ -243,15 +243,7 @@ class DossieRepositoryImpl implements DossieRepository {
       case EstrategiaMesclagemDossie.direta:
         return _compilarDireto(dossie, arquivos, titulos);
       case EstrategiaMesclagemDossie.emPartes:
-        await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.falhaCompilacao));
-        return const Left(
-          DossieFailure(
-            'Este dossiê tem certificados demais para compilar de uma vez neste '
-            'dispositivo, e a compilação em partes ainda não está implementada '
-            '(ver DECISOES.md). Tente num computador com mais memória, ou remova '
-            'alguns certificados aprovados.',
-          ),
-        );
+        return _compilarEmPartes(dossie, arquivos, titulos, plano.tamanhosDosLotes);
       case EstrategiaMesclagemDossie.inviavelNoDispositivo:
         const mensagem = 'Pelo menos um certificado é grande demais para este dispositivo. '
             'Conclua a compilação num computador desktop.';
@@ -268,6 +260,51 @@ class DossieRepositoryImpl implements DossieRepository {
             estimatedBytesAvailable: _taskRunner.estimatedSafeHeapBytes,
           ),
         );
+    }
+  }
+
+  /// Dossiê grande demais para uma mesclagem só: mescla lote a lote (cada
+  /// lote abre um comprovante por vez) e depois junta os intermediários com
+  /// o sumário. O dossiê fica em `compilandoEmPartes` com o lote atual
+  /// gravado, para a tela poder mostrar o progresso.
+  Future<Either<Failure, Dossie>> _compilarEmPartes(
+    Dossie dossie,
+    List<ArquivoParaDossie> arquivos,
+    List<String> titulos,
+    List<int> tamanhosDosLotes,
+  ) async {
+    try {
+      final lotes = <LoteMesclado>[];
+      var inicio = 0;
+      for (var i = 0; i < tamanhosDosLotes.length; i++) {
+        await _localStore.salvarDossie(dossie.copyWith(
+          status: StatusDossie.compilandoEmPartes,
+          loteAtual: i + 1,
+          totalDeLotes: tamanhosDosLotes.length,
+        ));
+        final fim = inicio + tamanhosDosLotes[i];
+        lotes.add(await _pdfMergeDatasource.mesclarLote(arquivos.sublist(inicio, fim)));
+        inicio = fim;
+      }
+
+      final pdfFinal = await _pdfMergeDatasource.mesclarIntermediariosComSumario(
+        lotes: lotes,
+        titulosParaSumario: titulos,
+      );
+      await _localStore.salvarPdfFinal(dossie.id, pdfFinal);
+
+      final atualizado = dossie.copyWith(
+        status: StatusDossie.compilado,
+        caminhoPdfFinal: dossie.id,
+        loteAtual: 0,
+        totalDeLotes: 0,
+        limparNotaCompilacao: true,
+      );
+      await _localStore.salvarDossie(atualizado);
+      return Right(atualizado);
+    } catch (e) {
+      await _localStore.salvarDossie(dossie.copyWith(status: StatusDossie.falhaCompilacao));
+      return Left(DossieFailure('Falha ao mesclar o dossiê em partes: $e'));
     }
   }
 

@@ -1662,3 +1662,30 @@ dos arquivos vão pro LLM):
 usada não consegue preencher um input de pasta com caminhos relativos; precisa de teste manual.
 Também não testado: o fallback pra heurística local quando o provedor falha (a Groq respondeu
 bem nesta rodada).
+
+## Compilação do dossiê em partes (2026-10-24)
+
+A estratégia `emPartes` deixou de ser um erro "ainda não implementada". Experimento antes de
+implementar: uma página copiada como template do Syncfusion (`drawPdfTemplate`) continua
+íntegra mesmo se o PDF de origem for liberado (`dispose`) antes do `save` do destino. Testado
+com o edital real de 23 páginas, com texto extraível depois.
+
+Como funciona:
+
+- `PdfMergeDatasource.mesclarLote` junta um lote num PDF intermediário. Abre um comprovante
+  por vez e o libera logo depois de copiar, e devolve quantas páginas cada item ocupou.
+- `mesclarIntermediariosComSumario` escreve o sumário a partir dessas contagens e copia os
+  intermediários, também um por vez.
+- `PlanoDeMesclagem` ganhou `tamanhosDosLotes` (os limites de cada lote, em ordem).
+- O repositório grava `compilandoEmPartes` + `loteAtual`/`totalDeLotes` a cada lote.
+
+Limites conhecidos:
+
+- Os bytes originais de todos os comprovantes continuam em memória (o Hive carrega a box
+  inteira). O ganho é não manter todos os `PdfDocument` abertos de uma vez, que custam bem
+  mais que os bytes crus.
+- O PDF final em construção ocupa memória proporcional ao tamanho total. Isso é inevitável
+  sem escrever em disco.
+- A tela de compilação ainda mostra só "Compilando o dossiê…". O controller recebe o estado
+  apenas no fim, então "lote X de Y" não aparece ao vivo.
+- Não testado ao vivo: no desktop, o teto de memória nunca força esse caminho.

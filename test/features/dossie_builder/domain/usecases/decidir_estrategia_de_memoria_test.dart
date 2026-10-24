@@ -79,5 +79,8 @@ void main() {
     // 4 PDFs por lote antes de estourar (4 * 12.8MB = 51.2MB; o 5º levaria a
     // 64MB, acima do hint) — ou seja, no máximo 4 por lote.
     expect(plano.tamanhoDoLote, lessThanOrEqualTo(4));
+    // os tamanhos de cada lote cobrem todos os arquivos, em ordem
+    expect(plano.tamanhosDosLotes.fold<int>(0, (a, b) => a + b), 15);
+    expect(plano.tamanhosDosLotes, hasLength(plano.totalDeLotes));
   });
 }

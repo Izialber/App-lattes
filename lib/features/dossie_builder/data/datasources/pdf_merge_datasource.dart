@@ -17,6 +17,17 @@ class ArquivoParaDossie {
   bool get ehPdf => mimeType == 'application/pdf';
 }
 
+/// Um lote já mesclado na compilação em partes: o PDF intermediário (só as
+/// páginas dos comprovantes, sem sumário) e quantas páginas cada item do
+/// lote ocupou — o sumário final precisa disso para numerar sem reabrir os
+/// arquivos de origem.
+class LoteMesclado {
+  const LoteMesclado({required this.bytes, required this.paginasPorItem});
+
+  final List<int> bytes;
+  final List<int> paginasPorItem;
+}
+
 /// Monta o PDF final do dossiê (sumário + as páginas de cada comprovante,
 /// em ordem) a partir dos arquivos ORIGINAIS dos comprovantes.
 ///
@@ -52,27 +63,73 @@ class PdfMergeDatasource {
     );
   }
 
-  /// PENDENTE: a estratégia [EstrategiaMesclagemDossie.emPartes] (mesclar
-  /// PDFs intermediários gerados em lotes). Com o Syncfusion isso passou a
-  /// ser possível — mesma técnica de [_copiarPaginasDePdf] —, mas ainda não
-  /// foi implementado; `DossieRepositoryImpl.compilarDossieFinal` retorna
-  /// uma falha clara para este caso em vez de chamar este método.
-  Future<List<int>> mesclarLote(List<List<int>> pdfsDoLote) {
-    throw UnimplementedError(
-      'PdfMergeDatasource.mesclarLote: mesclagem em partes pendente — ver '
-      'DECISOES.md, "Mesclagem do dossiê".',
+  /// Primeira etapa da estratégia [EstrategiaMesclagemDossie.emPartes]:
+  /// junta as páginas de um lote num PDF intermediário. Abre UM arquivo de
+  /// origem por vez e o libera logo depois de copiar: a página desenhada como
+  /// template continua íntegra depois do `dispose` da origem (verificado com
+  /// o edital real em 2026-10-24), então o pico de memória é o lote em
+  /// construção mais o maior arquivo, não a soma de todos.
+  Future<LoteMesclado> mesclarLote(List<ArquivoParaDossie> arquivosDoLote) {
+    return _taskRunner.run(
+      task: () async {
+        final documento = PdfDocument();
+        try {
+          final paginasPorItem = <int>[];
+          for (final arquivo in arquivosDoLote) {
+            paginasPorItem.add(_acrescentar(documento, arquivo));
+          }
+          return LoteMesclado(bytes: await documento.save(), paginasPorItem: paginasPorItem);
+        } finally {
+          documento.dispose();
+        }
+      },
+      estimatedInputBytes: _somaBytes(arquivosDoLote.map((a) => a.bytes)),
+      debugLabel: 'mesclar-dossie-lote',
     );
   }
 
-  /// Ver [mesclarLote].
+  /// Segunda etapa da estratégia em partes: sumário + as páginas de cada
+  /// lote, abrindo um PDF intermediário por vez. [titulosParaSumario] tem um
+  /// título por item, na mesma ordem dos lotes.
   Future<List<int>> mesclarIntermediariosComSumario({
-    required List<List<int>> pdfsIntermediarios,
+    required List<LoteMesclado> lotes,
     required List<String> titulosParaSumario,
   }) {
-    throw UnimplementedError(
-      'PdfMergeDatasource.mesclarIntermediariosComSumario: mesclagem em partes pendente — '
-      'ver DECISOES.md, "Mesclagem do dossiê".',
+    return _taskRunner.run(
+      task: () async {
+        final paginasPorItem = [for (final lote in lotes) ...lote.paginasPorItem];
+        final documento = PdfDocument();
+        try {
+          _escreverSumarioNumerado(documento, titulosParaSumario, paginasPorItem);
+          for (final lote in lotes) {
+            final intermediario = PdfDocument(inputBytes: lote.bytes);
+            _copiarPaginasDePdf(documento, intermediario);
+            intermediario.dispose();
+          }
+          return await documento.save();
+        } finally {
+          documento.dispose();
+        }
+      },
+      estimatedInputBytes: _somaBytes(lotes.map((l) => l.bytes)),
+      debugLabel: 'mesclar-dossie-final',
     );
+  }
+
+  /// Copia [arquivo] para o fim de [documento] e devolve quantas páginas
+  /// ele ocupou.
+  int _acrescentar(PdfDocument documento, ArquivoParaDossie arquivo) {
+    if (!arquivo.ehPdf) {
+      _desenharImagem(documento, arquivo.bytes);
+      return 1;
+    }
+    final origem = PdfDocument(inputBytes: arquivo.bytes);
+    try {
+      _copiarPaginasDePdf(documento, origem);
+      return origem.pages.count;
+    } finally {
+      origem.dispose();
+    }
   }
 
   /// Heurística de estimativa de bytes de saída de uma mesclagem direta.
@@ -95,16 +152,7 @@ class PdfMergeDatasource {
     final documento = PdfDocument();
     try {
       final paginasPorItem = [for (final origem in origens) origem?.pages.count ?? 1];
-      final paginasDeSumario = max(1, (titulos.length / _linhasDeSumarioPorPagina).ceil());
-
-      final primeiraPaginaPorItem = <int>[];
-      var proxima = paginasDeSumario + 1;
-      for (final paginas in paginasPorItem) {
-        primeiraPaginaPorItem.add(proxima);
-        proxima += paginas;
-      }
-
-      _escreverSumario(documento, titulos, primeiraPaginaPorItem, paginasDeSumario);
+      _escreverSumarioNumerado(documento, titulos, paginasPorItem);
 
       for (var i = 0; i < arquivos.length; i++) {
         final origem = origens[i];
@@ -122,6 +170,23 @@ class PdfMergeDatasource {
         origem?.dispose();
       }
     }
+  }
+
+  /// Calcula a página inicial de cada item a partir de [paginasPorItem] e
+  /// escreve o sumário.
+  void _escreverSumarioNumerado(
+    PdfDocument documento,
+    List<String> titulos,
+    List<int> paginasPorItem,
+  ) {
+    final paginasDeSumario = max(1, (titulos.length / _linhasDeSumarioPorPagina).ceil());
+    final primeiraPaginaPorItem = <int>[];
+    var proxima = paginasDeSumario + 1;
+    for (final paginas in paginasPorItem) {
+      primeiraPaginaPorItem.add(proxima);
+      proxima += paginas;
+    }
+    _escreverSumario(documento, titulos, primeiraPaginaPorItem, paginasDeSumario);
   }
 
   void _escreverSumario(

@@ -127,6 +127,48 @@ void main() {
     resultado.dispose();
   });
 
+  group('em partes', () {
+    test('lotes + intermediários dão as mesmas páginas e numeração que a mesclagem direta', () async {
+      final lote1 = await datasource.mesclarLote([await _pdfDeOrigem(3), _pngValido()]);
+      final lote2 = await datasource.mesclarLote([await _pdfDeOrigem(2)]);
+      expect(lote1.paginasPorItem, [3, 1]);
+      expect(lote2.paginasPorItem, [2]);
+
+      final pdfBytes = await datasource.mesclarIntermediariosComSumario(
+        lotes: [lote1, lote2],
+        titulosParaSumario: ['Histórico', 'Foto', 'Diploma'],
+      );
+
+      final resultado = PdfDocument(inputBytes: pdfBytes);
+      // sumário (1) + 3 + 1 + 2
+      expect(resultado.pages.count, 7);
+      final extrator = PdfTextExtractor(resultado);
+      final sumario = extrator.extractText(startPageIndex: 0, endPageIndex: 0);
+      expect(sumario, matches(RegExp(r'Histórico\s*2')));
+      expect(sumario, matches(RegExp(r'Foto\s*5')));
+      expect(sumario, matches(RegExp(r'Diploma\s*6')));
+      expect(extrator.extractText(startPageIndex: 3, endPageIndex: 3), contains('origem 3'));
+      expect(extrator.extractText(startPageIndex: 6, endPageIndex: 6), contains('origem 2'));
+      resultado.dispose();
+    });
+
+    test('página em paisagem continua em paisagem depois das duas etapas', () async {
+      final lote = await datasource.mesclarLote(
+        [await _pdfDeOrigem(1, tamanho: const Size(999.69, 598.55))],
+      );
+      final pdfBytes = await datasource.mesclarIntermediariosComSumario(
+        lotes: [lote],
+        titulosParaSumario: ['Diploma em paisagem'],
+      );
+
+      final resultado = PdfDocument(inputBytes: pdfBytes);
+      final tamanho = resultado.pages[1].size;
+      expect(tamanho.width, closeTo(999.69, 0.5));
+      expect(tamanho.height, closeTo(598.55, 0.5));
+      resultado.dispose();
+    });
+  });
+
   test('estimarBytesSaida aplica o mesmo fator de folga de DecidirEstrategiaDeMemoria', () {
     final estimativa = datasource.estimarBytesSaida([
       List.filled(100, 0),
