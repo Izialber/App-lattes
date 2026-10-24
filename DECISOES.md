@@ -1637,3 +1637,28 @@ página — o edital inteiro estoura o limite de tokens do plano gratuito):
 3. Compilação: "Dossiê compilado com sucesso!", PDF de 7 páginas (sumário + 2 páginas do
    certificado de Docência + 4 do histórico da Engenharia) — **comprovantes PDF dentro do dossiê,
    ao vivo**. Conferido lendo o PDF salvo no IndexedDB (`dossie_pdf_final`), sem baixar.
+
+## Teste ao vivo do "Anexar vários de uma vez" (2026-10-24)
+
+Publicado `c90de32` + `6e5fc92` (180 testes passando, `flutter build web` ok antes do push). No
+Chrome, de novo, o service worker servia a versão antiga — desregistrado e cache limpo antes do
+teste.
+
+Teste com "Escolher arquivos", 10 arquivos reais da pasta do usuário, provedor Groq (só os nomes
+dos arquivos vão pro LLM):
+- **Com entrada sugerida (3), todas certas**: `AutoCad 3D 1de2.pdf` → Autocad 3D;
+  `Izialber Muniz Mind The Sec Rio de Janeiro 2021.pdf` → evento Mind The Sec 2021;
+  `Expert 2020 Certificado.jpg` → evento Expert XP.
+- **Sem entrada (3), todas certas** (não existem no Lattes): NR-10, P&G CEO Award, LinkedIn
+  Learning.
+- **Descartados como duplicata (4), todos certos**: diploma de Física, FENEP, Matemática
+  (especialização UFPI) e MBA — já anexados nas mesmas entradas, cada um sugerido na entrada
+  correta e marcado "já existe um arquivo com esse nome nesta entrada".
+- Anexados: os 2 eventos novos (o AutoCad 1de2 foi descartado à mão, a entrada já tem um
+  `AutoCad 3D.pdf`). Tela de conclusão listou os 3 sem entrada. Comprovantes: 22 de 41 entradas;
+  sincronização com o Drive: 29 de 29 `sincronizado`.
+
+**Não testado ao vivo**: "Escolher uma pasta" (`webkitdirectory`) — a automação de navegador
+usada não consegue preencher um input de pasta com caminhos relativos; precisa de teste manual.
+Também não testado: o fallback pra heurística local quando o provedor falha (a Groq respondeu
+bem nesta rodada).
