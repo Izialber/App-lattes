@@ -1688,4 +1688,7 @@ Limites conhecidos:
   sem escrever em disco.
 - A tela de compilação ainda mostra só "Compilando o dossiê…". O controller recebe o estado
   apenas no fim, então "lote X de Y" não aparece ao vivo.
-- Não testado ao vivo: no desktop, o teto de memória nunca força esse caminho.
+- Não testado ao vivo: no desktop, o teto de memória nunca força esse caminho. Mas foi
+  comparado com PDFs reais (5 certificados + o edital, 46 páginas, 2 lotes): mesmo número de
+  páginas, mesmo texto e mesmo tamanho de página que a mesclagem direta. O arquivo em partes
+  sai ~43% maior (2,25 MB contra 1,57 MB), porque fontes e recursos passam por duas cópias.
