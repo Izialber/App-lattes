@@ -8,6 +8,7 @@ import '../../features/certificate_capture/presentation/pages/certificate_captur
 import '../../features/cloud_sync/presentation/pages/login_page.dart';
 import '../../features/cloud_sync/presentation/pages/oauth_callback_page.dart';
 import '../../features/cloud_sync/presentation/providers/auth_providers.dart';
+import '../../features/comprovantes/presentation/pages/anexar_em_lote_page.dart';
 import '../../features/comprovantes/presentation/pages/comprovantes_lattes_page.dart';
 import '../../features/dossie_builder/presentation/pages/dossie_checklist_page.dart';
 import '../../features/dossie_builder/presentation/pages/dossie_compile_page.dart';
@@ -27,6 +28,7 @@ abstract class AppRoutes {
   static const importarLattes = '/importar-lattes';
   static const capturarCertificados = '/certificados';
   static const comprovantes = '/comprovantes';
+  static const comprovantesEmLote = '/comprovantes/lote';
   static const configuracoesLlm = '/configuracoes/llm';
   static const dossieNovo = '/dossie/novo';
   static const dossieChecklist = '/dossie/:dossieId/checklist';
@@ -135,6 +137,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.comprovantes,
         builder: (context, state) => const ComprovantesLattesPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.comprovantesEmLote,
+        builder: (context, state) => const AnexarEmLotePage(),
       ),
       GoRoute(
         path: AppRoutes.configuracoesLlm,

@@ -77,6 +77,17 @@ class _ComprovantesLattesPageState extends ConsumerState<ComprovantesLattesPage>
           ),
         ],
       ),
+      // Atalho opcional pra pastas com dezenas de certificados — o botão por
+      // entrada continua sendo o caminho principal (ver DECISOES.md, "Anexar
+      // vários comprovantes de uma vez").
+      floatingActionButton: estado.entradas.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              icon: const Icon(Icons.library_add_outlined),
+              label: const Text('Anexar vários'),
+              tooltip: 'Escolher vários arquivos ou uma pasta e deixar a IA sugerir as entradas',
+              onPressed: () => context.go(AppRoutes.comprovantesEmLote),
+            ),
       body: Column(
         children: [
           if (estado.erro != null)
@@ -136,7 +147,7 @@ class _ComprovantesLattesPageState extends ConsumerState<ComprovantesLattesPage>
                     ),
                   )
                 : ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
                     children: [
                       for (final categoria in CategoriaEntradaLattes.values)
                         _secao(context, ref, estado, categoria),

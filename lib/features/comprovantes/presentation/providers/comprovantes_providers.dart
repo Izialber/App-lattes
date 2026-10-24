@@ -4,15 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../lattes_parser/presentation/providers/lattes_providers.dart';
+import '../../../llm_shared/presentation/providers/llm_shared_providers.dart';
 import '../../data/datasources/comprovante_upload_datasource.dart';
 import '../../data/local/comprovante_local_store.dart';
 import '../../data/repositories/comprovante_repository_impl.dart';
+import '../../data/repositories/sugestao_entrada_repository_impl.dart';
 import '../../domain/entities/comprovante_entrada.dart';
 import '../../domain/entities/entrada_lattes_ref.dart';
 import '../../domain/entities/mapear_entradas_lattes.dart';
 import '../../domain/repositories/comprovante_repository.dart';
+import '../../domain/repositories/sugestao_entrada_repository.dart';
 import '../../domain/usecases/anexar_comprovante.dart';
 import '../../domain/usecases/remover_comprovante.dart';
+import '../../domain/usecases/sugerir_entradas_em_lote.dart';
 
 // ---------------------------------------------------------------------------
 // Providers de infraestrutura do módulo de comprovantes — ver convenção em
@@ -38,6 +42,14 @@ final anexarComprovanteProvider = Provider(
 
 final removerComprovanteProvider = Provider(
   (ref) => RemoverComprovante(ref.watch(comprovanteRepositoryProvider)),
+);
+
+final sugestaoEntradaRepositoryProvider = Provider<SugestaoEntradaRepository>(
+  (ref) => SugestaoEntradaRepositoryImpl(ref.watch(llmRepositoryProvider)),
+);
+
+final sugerirEntradasEmLoteProvider = Provider(
+  (ref) => SugerirEntradasEmLote(ref.watch(sugestaoEntradaRepositoryProvider)),
 );
 
 /// Estado da tela de comprovantes: as entradas do currículo (recalculadas do
@@ -83,7 +95,7 @@ class ComprovantesController extends Notifier<ComprovantesState> {
   /// nenhum (achado de pesquisa de UX: "especificar formato e tamanho
   /// máximo antes do upload", ver DECISOES.md). 15MB cobre folgadamente uma
   /// foto/scan de certificado ou um PDF digitalizado comum.
-  static const _tamanhoMaximoBytes = 15 * 1024 * 1024;
+  static const tamanhoMaximoBytes = 15 * 1024 * 1024;
 
   @override
   ComprovantesState build() {
@@ -122,7 +134,7 @@ class ComprovantesController extends Notifier<ComprovantesState> {
     final arquivo = await ref.read(comprovanteUploadDatasourceProvider).selecionarArquivo();
     if (arquivo == null) return;
 
-    if (arquivo.bytes.length > _tamanhoMaximoBytes) {
+    if (arquivo.bytes.length > tamanhoMaximoBytes) {
       final tamanhoMb = (arquivo.bytes.length / (1024 * 1024)).toStringAsFixed(1);
       state = state.copyWith(
         erro: 'Arquivo "${arquivo.nomeArquivo}" tem ${tamanhoMb}MB — o limite é 15MB.',

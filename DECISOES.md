@@ -1544,3 +1544,73 @@ critérios (Groq com limite/erro acima). Próximo passo: deploy destas mudanças
 
 **Aba "Usuários" do admin — confirmada ao vivo**: lista izialber@gmail.com (código `9XHQQ2CS`,
 24/10/2026 18:28) e a conta de teste (código `4UF9YBFR`, 30/09/2026 15:00).
+
+## Anexar vários comprovantes de uma vez, com sugestão por LLM (2026-10-24)
+
+Pedido do usuário depois de anexar dezenas de PDFs um por um: a pasta dele tem uns 100
+certificados, muitos sem entrada no Lattes. O redesenho de 2026-09-22 ("Módulo 2 redesenhado")
+tirou o LLM do Módulo 2 de propósito. Esta mudança traz o LLM de volta SÓ como atalho opcional,
+sem mexer no fluxo principal: o botão de upload de cada entrada continua igual, e o vínculo
+continua nascendo de uma decisão do usuário (a tela de revisão), nunca automático.
+
+**Fluxo**: botão "Anexar vários" (FAB) na tela de Comprovantes -> `/comprovantes/lote`
+(`AnexarEmLotePage`) -> "Escolher arquivos" (`file_picker`, `allowMultiple`) ou "Escolher uma pasta"
+(mesmo `<input webkitdirectory>` já usado no Módulo 2 antigo, duplicado em
+`ComprovanteUploadDatasourceWeb.selecionarPasta` pelo mesmo motivo das extensões: este módulo não
+depende do antigo) -> `SugerirEntradasEmLote` -> revisão (trocar entrada num dropdown, descartar)
+-> "Anexar N arquivos" -> cada um vira comprovante pelo MESMO `AnexarComprovante` do botão por
+entrada. Por isso HEIC, o limite de 15MB, a lista por entrada e a sincronização com o Drive
+(fila existente) funcionam sem nenhuma mudança.
+
+**Só o nome do arquivo vai pro LLM, não o conteúdo.** Decisão deliberada:
+- a Groq gratuita tem cerca de 8K tokens por minuto e não lê PDF; mandar 100 PDFs seria inviável
+  nela e caro nos outros provedores;
+- os nomes reais da pasta do usuário são descritivos (ex.: `Diplomas/Matematica/Diploma_
+  LICENCIATURA EM MATEMÁTICA .pdf`, `Eventos/certificado_7_congresso_nacional_fenep...pdf`), e o
+  caminho da subpasta entra junto como pista;
+- nada do certificado em si sai do navegador; só nomes de arquivo e títulos do Lattes, que já são
+  públicos.
+
+O prompt usa ids curtos (`e1`, `a1`) no lugar do hash de 24 caracteres de `gerarIdEntrada` e do
+uuid dos arquivos: economiza tokens e reduz a chance do modelo copiar um id errado. A resposta
+pedida é `{"atribuicoes": {"a1": "e3", "a2": null}}`. `interpretarRespostaMapeamento` aceita ids
+inventados, valores que não são string ou arquivos faltando na resposta e transforma tudo isso em
+"sem entrada", sem derrubar o lote. Lotes de 60 arquivos: ~100 arquivos + ~40 entradas ficam em
+2 chamadas de ~3-4K tokens cada.
+
+**Fallback quando o provedor falha** (sem provedor configurado, chave inválida, 429, limite de
+tokens por minuto da Groq, rede, resposta fora do formato): o lote que falhou e todos os
+seguintes caem na heurística local `sugerirEntradaPorNome`, sem nova chamada ao provedor que
+acabou de falhar. A tela mostra um aviso com a mensagem real do provedor e a frase "confira com
+mais atenção". A heurística é conservadora: pede pelo menos 2 palavras do título em comum (1 se
+o título só tem uma palavra), a instituição só desempata e nunca decide sozinha ("IFRJ" bate com
+toda entrada do IFRJ), e um empate no melhor placar vira "sem entrada". Um vínculo errado aceito
+sem querer na revisão é pior que uma linha a mais pra escolher à mão.
+
+**Arquivos sem entrada não são anexados**: ficam numa seção "Sem entrada" da revisão (com
+dropdown pra escolher uma entrada à mão) e são listados de novo na tela de conclusão.
+`ComprovanteEntrada` exige `entradaId` e categoria, e a categoria define a subpasta no Drive.
+Inventar um "comprovante sem entrada" mudaria o modelo de dados e a sincronização por um caso que
+se resolve cadastrando a entrada no Lattes e reimportando o XML.
+
+**Outras decisões pequenas**:
+- **Duplicata**: arquivo com o mesmo nome já anexado na mesma entrada aparece marcado e
+  descartado por padrão. Rodar o lote de novo sobre a mesma pasta é o caso normal e não pode
+  duplicar comprovante; o usuário pode desfazer o descarte.
+- **Limites**: arquivos acima de 15MB aparecem em "Não podem ser anexados" e nem vão pra
+  sugestão. Arquivos da pasta em formatos não aceitos (.msg, .docx, .xlsx: a pasta real tem
+  vários) são contados e avisados, em vez de sumirem calados.
+- **Memória**: o controller é `autoDispose`, porque segura os bytes de todos os arquivos
+  escolhidos; sair da tela libera. Recarregar a página no meio da revisão perde a seleção (os
+  bytes só existem em memória), aceitável pra um atalho.
+
+**Testes** (26 novos): `sugerir_entrada_por_nome_test.dart` (heurística, com nomes tirados da
+pasta real do usuário), `sugerir_entradas_em_lote_test.dart` (LLM ok, falha total, falha no meio
+do lote, divisão em lotes, currículo vazio) e `sugestao_entrada_repository_impl_test.dart`
+(prompt com ids curtos e interpretação tolerante da resposta). `flutter analyze` sem achado novo,
+`flutter build web` ok. As 3 suítes que já falhavam antes desta mudança continuam falhando pelo
+mesmo motivo (carregamento de `package:web` na VM e o teste do dossiê), sem relação com esta
+mudança.
+
+**Ainda não testado ao vivo**: falta rodar a seleção de pasta e a sugestão real com a chave do
+usuário (Groq e outro provedor) contra a pasta de ~100 certificados.

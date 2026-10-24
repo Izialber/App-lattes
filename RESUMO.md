@@ -1,3 +1,14 @@
+**Anexar vários comprovantes de uma vez (atalho opcional, com LLM)** — botão "Anexar vários" na
+tela de Comprovantes (`/comprovantes/lote`): o usuário escolhe vários arquivos ou uma pasta
+inteira, o LLM configurado (BYOK) sugere a entrada do Lattes de cada arquivo olhando SÓ o nome/
+caminho (sem enviar o conteúdo — cabe na Groq gratuita e funciona com qualquer provedor), e uma
+tela de revisão deixa trocar ou descartar cada sugestão antes de qualquer comprovante ser criado.
+Se o LLM falhar (sem provedor, chave inválida, limite de tokens), a sugestão cai numa heurística
+local por nome de arquivo, com aviso explícito na tela. Arquivos sem entrada ficam listados e não
+são anexados. O botão por entrada continua igual, como caminho principal. 26 testes novos
+(heurística, use case com fallback, prompt/interpretação da resposta); `flutter analyze` e
+`flutter build web` limpos. Ainda não testado ao vivo. Ver DECISOES.md.
+
 **Reteste ao vivo (2026-10-24): login Google com código de convite e sincronização com o Drive
 funcionando** — 27 comprovantes sincronizados, uma pasta `Certificados Lattes` só (subpastas
 reaproveitadas, sem duplicata), reimportar o XML preserva os comprovantes, e a entrada "Técnico"
