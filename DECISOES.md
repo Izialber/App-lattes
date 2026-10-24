@@ -1442,3 +1442,37 @@ código usou. Cobre os dois fluxos de login (Google e e-mail/senha), porque os d
 **Ainda não testado ao vivo** — sem SDK Flutter neste ambiente (mesma limitação de sempre).
 Nenhum teste novo escrito (mesmo motivo do fix de Firestore anterior: mockar `cloud_firestore`
 não é trivial e não dava pra verificar se compilava aqui).
+
+## Reteste ao vivo: login Google + sincronização com o Drive (2026-10-24)
+
+Reteste de ponta a ponta depois das mudanças desde 2026-09-30 (gate de código de convite,
+confirmação de e-mail via `id_token`, correções da revisão de 2026-10-10). Feito em parte no
+painel de navegador do Claude Code e em parte no Claude em Chrome (o painel não deixa escolher
+arquivos no seletor; o Chrome tem upload de arquivo direto num `<input type=file>`).
+
+**Login Google com gate de convite — funcionando como desenhado.** A conta Google do próprio
+admin (izialber@gmail.com) caiu em `/login/codigo`: nunca tinha resgatado um código, e o gate
+não abre exceção pro admin (só a conta de teste `teste-codigo-convite@example.com` tinha
+resgatado, em 2026-09-30). Gerado o código `9XHQQ2CS` (rótulo "admin - login Google") em
+`/admin/codigos` — a senha da conta admin de e-mail/senha tinha sido esquecida e foi redefinida
+pelo "Esqueci minha senha" da tela de login (mesmo projeto Firebase, funciona pra conta admin
+também). Depois do resgate, login Google entra direto, sem pedir código de novo.
+
+**Reimportar o XML preserva os comprovantes.** O currículo salvo no Chrome era anterior ao fix da
+tag `CURSO-TECNICO-PROFISSIONALIZANTE` (40 entradas, sem "Técnico"). Reimportado: 41 entradas,
+"Técnico em Eletrotécnica" apareceu (tag confirmada ao vivo com o XML real), e os 20 comprovantes
+já anexados continuaram ligados às entradas — os ids determinísticos de `gerarIdEntrada`
+funcionam como planejado.
+
+**Sincronização com o Drive — confirmada, sem pasta duplicada.** 7 comprovantes novos anexados
+(Técnico: 2 páginas do diploma IFRJ + histórico; eventos: 7º Congresso FENEP, IFRJ Semac V,
+Smart Grids; experiência: iniciação científica Estácio, PDF de 7MB). Os 27 comprovantes ficaram
+`sincronizado`. Conferido no Drive: uma única pasta `Certificados Lattes` (a de 2026-09-30),
+subpastas antigas reaproveitadas, e só as 3 categorias que ainda não tinham arquivo ganharam
+subpasta nova (`Técnico`, `Participação em eventos`, `Experiência profissional`). Nenhum
+arquivo duplicado. Limitação mantida e lembrada ao usuário: com escopo `drive.file`, o app só
+enxerga pastas que ele mesmo criou — uma pasta "Certificados Lattes" criada à mão no Drive não
+seria encontrada e o app criaria outra ao lado.
+
+**Não verificado nesta sessão**: a aba "Usuários" do painel de admin (deveria listar agora
+izialber@gmail.com com o código `9XHQQ2CS`) — não foi aberta.

@@ -1,3 +1,8 @@
+**Reteste ao vivo (2026-10-24): login Google com código de convite e sincronização com o Drive
+funcionando** — 27 comprovantes sincronizados, uma pasta `Certificados Lattes` só (subpastas
+reaproveitadas, sem duplicata), reimportar o XML preserva os comprovantes, e a entrada "Técnico"
+aparece com o XML real. Ver DECISOES.md.
+
 **Nova aba "Usuários" no painel de admin** — mostra quem já resgatou um código de convite
 (Google ou e-mail/senha), com data e qual código usou. NÃO é histórico de login (o app não
 registra cada login) — reaproveita a coleção `acessos_autorizados` que já existia pro gate de
