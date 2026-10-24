@@ -1614,3 +1614,26 @@ mudança.
 
 **Ainda não testado ao vivo**: falta rodar a seleção de pasta e a sugestão real com a chave do
 usuário (Groq e outro provedor) contra a pasta de ~100 certificados.
+
+## Teste ao vivo do Montar Dossiê depois do deploy de `e80edf4` (2026-10-24)
+
+Publicado só `c31dc68` + `e80edf4` (o commit do anexo em lote ficou local, ainda não testado ao
+vivo). Deploy do Cloudflare Pages no ar ~2 min depois do push. No Chrome, o service worker
+(`certificados-lattes-v1-shell`) continuava servindo o `main.dart.js` antigo — desregistrado e o
+cache limpo (só o cache de arquivos; IndexedDB com currículo/comprovantes intacto). Vale lembrar
+pra qualquer reteste pós-deploy: sem isso, o navegador testa a versão anterior.
+
+**Ponta a ponta funcionando**, provedor Groq, edital = Anexo IV do edital 4/2026 do IFRJ (1
+página — o edital inteiro estoura o limite de tokens do plano gratuito):
+1. Extração de critérios: sem erro — confirma ao vivo o fix de `json_validate_failed`.
+   **Qualidade baixa**: o `openai/gpt-oss-20b` extraiu só 7 dos ~17 itens da tabela (faltaram
+   produção acadêmica além de artigos, orientações, bancas e experiência no magistério/profissional),
+   e alguns máximos vieram errados (ex.: "livro — máx. 2" quando a tabela diz 1 ponto no item).
+   Dá pra completar com "Adicionar critério manualmente"; pra edital real, o Gemini deve render
+   melhor — não testado (sem chave).
+2. Checklist: os 27 comprovantes apareceram; a heurística de similaridade não sugeriu nenhum
+   vínculo (nenhuma palavra em comum entre os títulos do Lattes e os critérios deste edital —
+   esperado). Dois vínculos aprovados manualmente só pra testar.
+3. Compilação: "Dossiê compilado com sucesso!", PDF de 7 páginas (sumário + 2 páginas do
+   certificado de Docência + 4 do histórico da Engenharia) — **comprovantes PDF dentro do dossiê,
+   ao vivo**. Conferido lendo o PDF salvo no IndexedDB (`dossie_pdf_final`), sem baixar.
