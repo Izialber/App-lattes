@@ -138,7 +138,7 @@ class CertificateUploadDatasourceWeb implements CertificateUploadDatasource {
       final arquivos = await completer.future;
       if (arquivos == null) return const [];
 
-      return _lerArquivosAceitos(arquivos);
+      return await _lerArquivosAceitos(arquivos);
     } finally {
       input.remove();
     }

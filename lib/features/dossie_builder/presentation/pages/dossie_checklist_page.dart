@@ -285,7 +285,10 @@ class _ComprovanteVinculoTileState extends ConsumerState<_ComprovanteVinculoTile
               ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _criterioSelecionadoId,
+              // `initialValue` só vale na criação do campo; a key recria o
+              // campo quando a seleção muda, para ele nunca ficar defasado.
+              key: ValueKey(_criterioSelecionadoId),
+              initialValue: _criterioSelecionadoId,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Critério do edital',
