@@ -148,8 +148,9 @@ alguns eventos. Ou você indica os arquivos, ou as entradas ficam sem comprovant
 
 ## Trabalho de código pendente (pedir à parte)
 
-- **Limpeza**: apagar as branches `backup-main-2026-10-24` e `publicar-sem-lote` (e a worktree
-  temporária dela, se ainda existir; `git worktree prune`). Precisa da sua confirmação.
+- ~~Limpeza~~: **feita em 2026-10-25**. As branches `backup-main-2026-10-24` e
+  `publicar-sem-lote` foram apagadas, a worktree temporária foi removida e rodei
+  `git worktree prune`. Os commits do backup já estavam na `main` (`c90de32` e `e80edf4`).
 - **Groq com edital inteiro**: mandar ao LLM só as páginas da tabela de pontuação. Teste rápido:
   exigir "pontuação" + "títulos" na mesma página seleciona 6 de 29 páginas (~22 mil caracteres),
   o que ainda passa do limite. Precisaria ordenar as páginas por densidade de "ponto(s)". Risco
