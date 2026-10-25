@@ -128,7 +128,11 @@ void main() {
       );
 
       expect(resultado.isLeft(), isTrue);
-      resultado.match((falha) => expect(falha, isA<DossieFailure>()), (_) => fail('esperava Left'));
+      resultado.match((falha) {
+        expect(falha, isA<DossieFailure>());
+        // a mensagem chega ao usuário: sem o "Bad state:" do StateError.toString()
+        expect(falha.message, 'Falha ao interpretar o edital: sem texto legível');
+      }, (_) => fail('esperava Left'));
       verifyNever(() => localStore.salvarEdital(any()));
     });
 

@@ -73,7 +73,10 @@ class DossieRepositoryImpl implements DossieRepository {
               ))
           .toList();
     } catch (e) {
-      return Left(DossieFailure('Falha ao interpretar o edital: $e'));
+      // StateError é como o datasource sinaliza um erro já explicado ao
+      // usuário; o toString() dele poria "Bad state:" na frente da mensagem.
+      final motivo = e is StateError ? e.message : '$e';
+      return Left(DossieFailure('Falha ao interpretar o edital: $motivo'));
     }
 
     final edital = Edital(

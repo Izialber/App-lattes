@@ -124,22 +124,42 @@ alguns eventos. Ou você indica os arquivos, ou as entradas ficam sem comprovant
   testar" não tinha trocado o provedor. Investigar: na tela, trocar de aba também não mostra se
   aquele provedor já tem chave salva.
 
-## Trabalho de código pendente (não é teste — pedir à parte)
+## Feito sem você em 2026-10-24 (noite), tudo publicado e testado
 
-- **Compilação em partes** (`EstrategiaMesclagemDossie.emPartes`) para dossiês grandes demais
-  para a memória. Viável agora com a mesma técnica do Syncfusion de `PdfMergeDatasource`.
-- ~~Sumário sem travessão~~: **corrigido em 2026-10-24** (commit "fix(dossie): travessão..."):
-  travessões e aspas tipográficas viram hífen e aspas simples. Testado em unidade. Publica junto
-  com o push deste plano; conferir no próximo dossiê compilado ao vivo.
-- **Groq extrai poucos critérios**: talvez melhorar o prompt de `LlmEditalDatasource`, ou deixar
-  a Groq só para editais curtos.
-- **Aviso do `flutter analyze`** em `dossie_checklist_page.dart` (`DropdownButtonFormField.value`
-  obsoleto): NÃO é só trocar por `initialValue`. `initialValue` só vale na criação do campo, e a
-  seleção mudada pelo app depois não apareceria. Fazer junto com uma `key` que mude com
-  `_criterioSelecionadoId` (ex.: `ValueKey(_criterioSelecionadoId)`) e retestar a tela de
-  revisão ao vivo.
+- **Sugestão de critério no dossiê** (acentos) e **lote com arquivo já anexado**: conferido ao
+  vivo. "Mind The Sec" e "Autocad 3D" não recebem mais a sugestão de magistério.
+- **Configurações**: mostra "Em uso agora: X", avisa se a aba escolhida já tem chave salva e
+  oferece "Usar a chave salva do X" sem colar de novo. Testado ao vivo (Gemini → Groq → Gemini).
+  Explica o mistério de antes: a chave do Gemini estava salva desde 2026-10-02, e o "Salvar e
+  testar" de hoje provavelmente falhou por causa do 503 do Gemini, então nada foi gravado.
+- **Gemini/Anthropic**: repetem até 3 vezes em 503/529 (alta demanda). O timeout de resposta
+  passou de 90 s para 180 s.
+- **Compilação em partes** implementada (ver DECISOES.md). Comparada com PDFs reais: mesmas 46
+  páginas, mesmo texto e mesmo tamanho de página que a mesclagem direta. Não dá para forçar ao
+  vivo no desktop.
+- **Groq**: a causa de "poucos critérios" era o `gpt-oss-20b` gastar os 2048 tokens de saída
+  raciocinando. Com `reasoning_effort: low` + 4096 tokens + prompt novo, extraiu **18 de 18**
+  itens do Anexo IV ao vivo, em menos de 10 s, com todos os máximos certos (inclusive
+  experiência máx. 16 e especialização >600h = 4 pts). O edital inteiro ainda passa do limite
+  gratuito (8K tokens/min); a mensagem manda trocar para o Gemini, agora sem o "Bad state:" na
+  frente.
+- **Dropdown** (`initialValue` + key): retestado ao vivo, inclusive trocando uma sugestão que já
+  vinha preenchida.
+
+## Trabalho de código pendente (pedir à parte)
+
 - **Limpeza**: apagar as branches `backup-main-2026-10-24` e `publicar-sem-lote` (e a worktree
-  temporária dela, se ainda existir; `git worktree prune`).
+  temporária dela, se ainda existir; `git worktree prune`). Precisa da sua confirmação.
+- **Groq com edital inteiro**: mandar ao LLM só as páginas da tabela de pontuação. Teste rápido:
+  exigir "pontuação" + "títulos" na mesma página seleciona 6 de 29 páginas (~22 mil caracteres),
+  o que ainda passa do limite. Precisaria ordenar as páginas por densidade de "ponto(s)". Risco
+  de perder critério descrito em texto corrido.
+- **Progresso "lote X de Y"** na tela de compilação: o repositório já grava, mas a tela só recebe
+  o estado no fim.
+- **Teto de 20 pts por grupo** (experiência): o modelo `CriterioPontuacao` não tem limite por
+  grupo, só por item.
+- **Sugestão de critério por categoria do Lattes**: a heurística só compara palavras. Uma pós
+  lato sensu poderia ir direto para "Especialização", e um artigo para "Publicação de artigo".
 
 ## Truques que funcionaram (para o Claude)
 
