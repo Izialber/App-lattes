@@ -24,9 +24,26 @@ Regras:
   fases do concurso (prova objetiva, prova prática, etc.).
 - Cada linha/item de uma tabela de pontuação do edital vira um critério
   separado — não agrupe itens diferentes numa única descrição.
+- O texto vem de um PDF: as células de uma tabela costumam aparecer
+  quebradas em várias linhas, e os números de uma linha podem vir antes ou
+  depois da descrição. Reconstrua cada linha da tabela antes de extrair.
+- Linhas de grupo (ex.: "A) FORMAÇÃO ACADÊMICA", "B) PRODUÇÃO ACADÊMICA") e
+  linhas de total ("TOTAL", "Pontuação máxima do grupo") NÃO são critérios.
+  Inclua todas as linhas de TODOS os grupos da tabela, não só do primeiro.
 - "pontosPorUnidade" e "limiteMaximoUnidades" devem ser SOMENTE números
   (ex.: 10, 0.5), nunca texto como "10 pontos" ou "máximo 1". Use null
   sempre que o valor não estiver claro no texto, em vez de adivinhar.
+- ATENÇÃO: "limiteMaximoUnidades" é uma QUANTIDADE de títulos, não de pontos.
+  Editais quase sempre informam a "pontuação máxima no item" em PONTOS; nesse
+  caso converta: limiteMaximoUnidades = pontuação máxima do item ÷
+  pontosPorUnidade. Exemplos:
+    "0,5 ponto por publicação — máximo 1 ponto"   → pontosPorUnidade 0.5, limiteMaximoUnidades 2
+    "0,1 ponto por trabalho — máximo 1 ponto"      → pontosPorUnidade 0.1, limiteMaximoUnidades 10
+    "Doutorado — 10 pontos — máximo 10 pontos"     → pontosPorUnidade 10, limiteMaximoUnidades 1
+    "1,25 ponto por ano — máximo 20 pontos"        → pontosPorUnidade 1.25, limiteMaximoUnidades 16
+  Se o máximo vale para um GRUPO de linhas (célula mesclada), use o máximo
+  do grupo nessa conta para cada linha do grupo.
+- Use ponto decimal nos números (0.5, não "0,5").
 - Se o texto não parecer ser um edital de concurso público, ou não tiver
   nenhuma seção de pontuação de títulos identificável, responda com
   "criterios": [] (lista vazia) em vez de inventar critérios.

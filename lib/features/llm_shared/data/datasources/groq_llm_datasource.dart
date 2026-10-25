@@ -65,9 +65,19 @@ class GroqLlmDatasource {
         },
     ];
 
+    final comImagem = imagemBytes != null && mimeType != null;
     final corpo = <String, dynamic>{
-      'model': imagemBytes != null && mimeType != null ? _modeloVisao : _modeloTexto,
+      'model': comImagem ? _modeloVisao : _modeloTexto,
       'response_format': {'type': 'json_object'},
+      // Achado ao vivo (2026-10-24, Anexo IV do edital do IFRJ): o
+      // `gpt-oss-20b` raciocina antes de responder e, com o padrão da Groq
+      // (2048 tokens de saída), gastava 2046 só raciocinando — a resposta
+      // vinha vazia/cortada e só 2-7 critérios sobreviviam. Com raciocínio
+      // baixo e 4096 tokens, os 18 itens vieram completos.
+      if (!comImagem) ...{
+        'reasoning_effort': 'low',
+        'max_completion_tokens': 4096,
+      },
       'messages': [
         {'role': 'user', 'content': content},
       ],
@@ -124,11 +134,21 @@ class GroqLlmDatasource {
   }
 
   String _extrairTexto(dynamic data) {
+    final String texto;
+    final Object? motivoDoFim;
     try {
-      final escolhas = data['choices'] as List;
-      return escolhas.first['message']['content'] as String;
+      final escolha = (data['choices'] as List).first;
+      texto = escolha['message']['content'] as String;
+      motivoDoFim = (escolha as Map)['finish_reason'];
     } catch (e) {
       throw LlmApiException('Resposta da Groq fora do formato esperado: $e');
     }
+    if (motivoDoFim == 'length') {
+      throw const LlmApiException(
+        'A resposta da Groq foi cortada por tamanho antes de terminar o JSON. Tente de novo, '
+        'envie só a página da tabela de pontuação, ou use o Gemini para editais longos.',
+      );
+    }
+    return texto;
   }
 }

@@ -97,4 +97,33 @@ void main() {
     );
     expect(adapter.corposRecebidos, hasLength(1));
   });
+
+  test('modelo de texto: raciocínio baixo e espaço de saída para o JSON', () async {
+    final adapter = _AdapterSequencial([(200, _respostaComTexto('{"ok": true}'))]);
+
+    await _datasourceCom(adapter).gerarJson(apiKey: 'chave', prompt: 'prompt');
+
+    final corpo = adapter.corposRecebidos.single;
+    expect(corpo['reasoning_effort'], 'low');
+    expect(corpo['max_completion_tokens'], greaterThanOrEqualTo(4096));
+  });
+
+  test('resposta cortada por tamanho vira erro claro, não "JSON inválido"', () async {
+    final adapter = _AdapterSequencial([
+      (200, {
+        'choices': [
+          {
+            'finish_reason': 'length',
+            'message': {'content': ''},
+          },
+        ],
+      }),
+    ]);
+
+    await expectLater(
+      _datasourceCom(adapter).gerarJson(apiKey: 'chave', prompt: 'prompt'),
+      throwsA(isA<LlmApiException>()
+          .having((e) => e.message, 'message', contains('cortada'))),
+    );
+  });
 }
